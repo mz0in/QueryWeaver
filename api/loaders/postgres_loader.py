@@ -243,7 +243,7 @@ class PostgresLoader(BaseLoader):
                 """
             )
             output = cursor.fetchone()
-            rows_count, distinct_count = output[0]
+            rows_count, distinct_count = output
 
             max_rows = Config.POSTGRES_MAX_ROWS
             max_distinct = Config.POSTGRES_MAX_DISTINCT

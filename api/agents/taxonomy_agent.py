@@ -52,7 +52,10 @@ class TaxonomyAgent:
         """Get taxonomy classification for a question and SQL pair."""
         messages = [
             {
-                "content": TAXONOMY_PROMPT.format(QUESTION=question, SQL=sql, EXPLANATION=explanation),
+                "content": TAXONOMY_PROMPT.format(QUESTION=question,
+                                                  SQL=sql,
+                                                  EXPLANATION=explanation.replace("{", "{{").replace("}", "}}")
+                                                  ),
                 "role": "user",
             }
         ]
