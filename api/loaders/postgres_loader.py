@@ -4,7 +4,6 @@ import re
 import datetime
 import decimal
 import logging
-from api.config import Config
 from typing import Tuple, Dict, Any, List
 
 import psycopg2
@@ -234,35 +233,11 @@ class PostgresLoader(BaseLoader):
             if column_default:
                 description_parts.append(f"(Default: {column_default})")
 
-            # Count rows and distinct values for the column
-            cursor.execute(
-                f"""
-                SELECT COUNT(*) AS total_count,
-                       COUNT(DISTINCT {col_name}) AS distinct_count
-                FROM {table_name};
-                """
+            # Add distinct values if applicable
+            distinct_values_desc = PostgresLoader.extract_distinct_values_for_column(
+                cursor, table_name, col_name
             )
-            output = cursor.fetchall()
-            rows_count, distinct_count = output[0]
-
-            max_rows = Config.POSTGRES_MAX_ROWS
-            max_distinct = Config.POSTGRES_MAX_DISTINCT
-            uniqueness_threshold = Config.POSTGRES_UNIQUENESS_THRESHOLD
-
-            if 0 < rows_count < max_rows and distinct_count < max_distinct:
-                uniqueness_value = distinct_count / rows_count
-                if uniqueness_value < uniqueness_threshold:
-                    cursor.execute(
-                        f"SELECT DISTINCT {col_name} FROM {table_name};"
-                    )
-                    distinct_values = [row[0] for row in cursor.fetchall() if row[0] is not None]
-                    if distinct_values:
-                        # Check first value type to avoid objects like dict/bytes
-                        first_val = distinct_values[0]
-                        if isinstance(first_val, (str, int, float)):
-                            description_parts.append(
-                                f"(Optional values: {', '.join(f'({str(v)})' for v in distinct_values)})"
-                            )
+            description_parts.extend(distinct_values_desc)
 
             columns_info[col_name] = {
                 'type': data_type,

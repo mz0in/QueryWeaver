@@ -278,6 +278,12 @@ class MySQLLoader(BaseLoader):
             if column_default is not None:
                 description_parts.append(f"(Default: {column_default})")
 
+            # Add distinct values if applicable
+            distinct_values_desc = MySQLLoader.extract_distinct_values_for_column(
+                cursor, table_name, col_name
+            )
+            description_parts.extend(distinct_values_desc)
+
             columns_info[col_name] = {
                 'type': data_type,
                 'null': is_nullable,
