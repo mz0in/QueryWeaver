@@ -10,7 +10,6 @@ export function toggleMenu() {
     
     if (!DOM.menuContainer.classList.contains('open')) {
         DOM.menuContainer.classList.add('open');
-        DOM.sideMenuButton.style.display = 'none';
         
         // Only adjust padding on desktop, not mobile (mobile uses overlay)
         if (!isMobile) {
@@ -19,7 +18,6 @@ export function toggleMenu() {
         }
     } else {
         DOM.menuContainer.classList.remove('open');
-        DOM.sideMenuButton.style.display = 'block';
         
         // Only adjust padding on desktop, not mobile (mobile uses overlay)
         if (!isMobile) {
@@ -126,6 +124,92 @@ export function setupThemeToggle() {
             'system': 'Switch to Dark Mode'
         };
         themeToggleBtn.title = titles[currentTheme];
+    }
+}
+
+export function setupToolbar() {
+    // Keyboard navigation: roving tabindex within #toolbar-buttons
+    const toolbar = document.getElementById('toolbar-buttons');
+    if (toolbar) {
+        const buttons = Array.from(toolbar.querySelectorAll('button.toolbar-button'));
+        // Ensure first button is tabbable
+        buttons.forEach((b, i) => b.setAttribute('tabindex', i === 0 ? '0' : '-1'));
+
+        toolbar.addEventListener('keydown', (e) => {
+            const focused = document.activeElement;
+            const idx = buttons.indexOf(focused);
+            if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+                e.preventDefault();
+                const next = buttons[(idx + 1) % buttons.length];
+                if (next) {
+                    buttons.forEach(b => b.setAttribute('tabindex', '-1'));
+                    next.setAttribute('tabindex', '0');
+                    next.focus();
+                }
+            } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+                e.preventDefault();
+                const prev = buttons[(idx - 1 + buttons.length) % buttons.length];
+                if (prev) {
+                    buttons.forEach(b => b.setAttribute('tabindex', '-1'));
+                    prev.setAttribute('tabindex', '0');
+                    prev.focus();
+                }
+            } else if (e.key === 'Enter' || e.key === ' ') {
+                // Activate the button
+                e.preventDefault();
+                if (focused) focused.click();
+            }
+        });
+    }
+
+    const schemaBtn = document.getElementById('toolbar-schema');
+    let schemaPanel = document.getElementById('schema-panel');
+
+    if (!schemaPanel) {
+        schemaPanel = document.createElement('div');
+        schemaPanel.id = 'schema-panel';
+        schemaPanel.innerHTML = '<h3 style="margin:0 0 6px 0;font-size:14px;">Schema</h3><div id="schema-panel-body" style="margin-top:8px;font-size:13px;">Schema panel (empty). Add schema widgets here.</div>';
+        document.body.appendChild(schemaPanel);
+    }
+
+    async function loadSchemaIntoPanel() {
+        const body = document.getElementById('schema-panel-body');
+        if (!body) return;
+        body.innerHTML = '<p style="font-size:13px;margin:0;">Loading schema…</p>';
+        try {
+            const resp = await fetch('/api/schema');
+            if (!resp.ok) throw new Error('Network response was not ok');
+            const data = await resp.json();
+            // If data has tables array, render a simple list/table
+            if (Array.isArray(data.tables)) {
+                const ul = document.createElement('ul');
+                ul.style.margin = '0';
+                ul.style.padding = '0 0 0 14px';
+                data.tables.forEach(t => {
+                    const li = document.createElement('li');
+                    li.textContent = t.name || JSON.stringify(t);
+                    ul.appendChild(li);
+                });
+                body.innerHTML = '';
+                body.appendChild(ul);
+            } else {
+                body.innerHTML = '<pre style="white-space:pre-wrap;font-size:12px;margin:0;">' + JSON.stringify(data, null, 2) + '</pre>';
+            }
+        } catch (err) {
+            body.innerHTML = '<p style="color:var(--text-secondary);margin:0;font-size:13px;">Could not load schema. Showing placeholder.</p><pre style="white-space:pre-wrap;font-size:12px;margin-top:8px;">' + String(err) + '</pre>';
+        }
+    }
+
+    if (schemaBtn) {
+        schemaBtn.addEventListener('click', function() {
+            const isOpen = schemaBtn.getAttribute('aria-pressed') === 'true';
+            schemaBtn.setAttribute('aria-pressed', (!isOpen).toString());
+            schemaPanel.classList.toggle('open');
+            if (!isOpen) {
+                // panel opened — attempt to load schema
+                loadSchemaIntoPanel();
+            }
+        });
     }
 }
 

@@ -13,6 +13,7 @@ import {
     handleResetConfirmation,
     setupUserProfileDropdown,
     setupThemeToggle,
+    setupToolbar,
     handleWindowResize
 } from './modules/ui.js';
 import { setupAuthenticationModal, setupDatabaseModal } from './modules/modals.js';
@@ -44,7 +45,6 @@ function setupEventListeners() {
 
     // Menu functionality
     DOM.menuButton.addEventListener('click', toggleMenu);
-    DOM.sideMenuButton.addEventListener('click', toggleMenu);
 
     // Reset functionality
     DOM.newChatButton.addEventListener('click', showResetConfirmation);
@@ -78,6 +78,7 @@ function setupUIComponents() {
     setupThemeToggle();
     setupAuthenticationModal();
     setupDatabaseModal();
+    setupToolbar();
 }
 
 function loadInitialData() {
