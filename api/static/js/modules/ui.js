@@ -4,12 +4,20 @@
 
 import { DOM } from './config.js';
 
-export function toggleMenu() {
+export function toggleContainer(container) {
     // Check if we're on mobile (768px breakpoint to match CSS)
     const isMobile = window.innerWidth <= 768;
-    
-    if (!DOM.menuContainer.classList.contains('open')) {
-        DOM.menuContainer.classList.add('open');
+
+    // find all the containers with class "sidebar-container" and if open remove open
+    const allContainers = document.querySelectorAll('.sidebar-container');
+    allContainers.forEach((c) => {
+        if (c !== container && c.classList.contains('open')) {
+            c.classList.remove('open');
+        }
+    });
+
+    if (!container.classList.contains('open')) {
+        container.classList.add('open');
         
         // Only adjust padding on desktop, not mobile (mobile uses overlay)
         if (!isMobile) {
@@ -17,7 +25,7 @@ export function toggleMenu() {
             DOM.chatContainer.style.paddingLeft = '10%';
         }
     } else {
-        DOM.menuContainer.classList.remove('open');
+        container.classList.remove('open');
         
         // Only adjust padding on desktop, not mobile (mobile uses overlay)
         if (!isMobile) {
@@ -162,73 +170,79 @@ export function setupToolbar() {
         });
     }
 
-    const schemaBtn = document.getElementById('toolbar-schema');
-    let schemaPanel = document.getElementById('schema-panel');
+    // const schemaBtn = document.getElementById('toolbar-schema');
+    // let schemaPanel = document.getElementById('schema-panel');
 
-    if (!schemaPanel) {
-        schemaPanel = document.createElement('div');
-        schemaPanel.id = 'schema-panel';
-        schemaPanel.innerHTML = '<h3 style="margin:0 0 6px 0;font-size:14px;">Schema</h3><div id="schema-panel-body" style="margin-top:8px;font-size:13px;">Schema panel (empty). Add schema widgets here.</div>';
-        document.body.appendChild(schemaPanel);
-    }
+    // if (!schemaPanel) {
+    //     schemaPanel = document.createElement('div');
+    //     schemaPanel.id = 'schema-panel';
+    //     schemaPanel.innerHTML = '<h3 style="margin:0 0 6px 0;font-size:14px;">Schema</h3><div id="schema-panel-body" style="margin-top:8px;font-size:13px;">Schema panel (empty). Add schema widgets here.</div>';
+    //     document.body.appendChild(schemaPanel);
+    // }
 
-    async function loadSchemaIntoPanel() {
-        const body = document.getElementById('schema-panel-body');
-        if (!body) return;
-        body.innerHTML = '<p style="font-size:13px;margin:0;">Loading schema…</p>';
-        try {
-            const resp = await fetch('/api/schema');
-            if (!resp.ok) throw new Error('Network response was not ok');
-            const data = await resp.json();
-            // If data has tables array, render a simple list/table
-            if (Array.isArray(data.tables)) {
-                const ul = document.createElement('ul');
-                ul.style.margin = '0';
-                ul.style.padding = '0 0 0 14px';
-                data.tables.forEach(t => {
-                    const li = document.createElement('li');
-                    li.textContent = t.name || JSON.stringify(t);
-                    ul.appendChild(li);
-                });
-                body.innerHTML = '';
-                body.appendChild(ul);
-            } else {
-                body.innerHTML = '<pre style="white-space:pre-wrap;font-size:12px;margin:0;">' + JSON.stringify(data, null, 2) + '</pre>';
-            }
-        } catch (err) {
-            body.innerHTML = '<p style="color:var(--text-secondary);margin:0;font-size:13px;">Could not load schema. Showing placeholder.</p><pre style="white-space:pre-wrap;font-size:12px;margin-top:8px;">' + String(err) + '</pre>';
-        }
-    }
+    // async function loadSchemaIntoPanel() {
+    //     const body = document.getElementById('schema-panel-body');
+    //     if (!body) return;
+    //     body.innerHTML = '<p style="font-size:13px;margin:0;">Loading schema…</p>';
+    //     try {
+    //         const resp = await fetch('/api/schema');
+    //         if (!resp.ok) throw new Error('Network response was not ok');
+    //         const data = await resp.json();
+    //         // If data has tables array, render a simple list/table
+    //         if (Array.isArray(data.tables)) {
+    //             const ul = document.createElement('ul');
+    //             ul.style.margin = '0';
+    //             ul.style.padding = '0 0 0 14px';
+    //             data.tables.forEach(t => {
+    //                 const li = document.createElement('li');
+    //                 li.textContent = t.name || JSON.stringify(t);
+    //                 ul.appendChild(li);
+    //             });
+    //             body.innerHTML = '';
+    //             body.appendChild(ul);
+    //         } else {
+    //             body.innerHTML = '<pre style="white-space:pre-wrap;font-size:12px;margin:0;">' + JSON.stringify(data, null, 2) + '</pre>';
+    //         }
+    //     } catch (err) {
+    //         body.innerHTML = '<p style="color:var(--text-secondary);margin:0;font-size:13px;">Could not load schema. Showing placeholder.</p><pre style="white-space:pre-wrap;font-size:12px;margin-top:8px;">' + String(err) + '</pre>';
+    //     }
+    // }
 
-    if (schemaBtn) {
-        schemaBtn.addEventListener('click', function() {
-            const isOpen = schemaBtn.getAttribute('aria-pressed') === 'true';
-            schemaBtn.setAttribute('aria-pressed', (!isOpen).toString());
-            schemaPanel.classList.toggle('open');
-            if (!isOpen) {
-                // panel opened — attempt to load schema
-                loadSchemaIntoPanel();
-            }
-        });
-    }
+    // if (schemaBtn) {
+    //     schemaBtn.addEventListener('click', function() {
+    //         const isOpen = schemaBtn.getAttribute('aria-pressed') === 'true';
+    //         schemaBtn.setAttribute('aria-pressed', (!isOpen).toString());
+    //         schemaPanel.classList.toggle('open');
+    //         if (!isOpen) {
+    //             // panel opened — attempt to load schema
+    //             loadSchemaIntoPanel();
+    //         }
+    //     });
+    // }
 }
 
 export function handleWindowResize() {
     const isMobile = window.innerWidth <= 768;
-    
-    // If menu is open and we switch to mobile, remove any desktop padding
-    if (isMobile && DOM.menuContainer.classList.contains('open')) {
-        DOM.chatContainer.style.paddingRight = '';
-        DOM.chatContainer.style.paddingLeft = '';
-    }
-    // If menu is open and we switch to desktop, apply desktop padding
-    else if (!isMobile && DOM.menuContainer.classList.contains('open')) {
-        DOM.chatContainer.style.paddingRight = '10%';
-        DOM.chatContainer.style.paddingLeft = '10%';
-    }
-    // If menu is closed and we're on desktop, ensure default desktop padding
-    else if (!isMobile && !DOM.menuContainer.classList.contains('open')) {
-        DOM.chatContainer.style.paddingRight = '20%';
-        DOM.chatContainer.style.paddingLeft = '20%';
-    }
+
+    // Find all the containers with class "sidebar-container" and if open remove open
+    const allContainers = document.querySelectorAll('.sidebar-container');
+    allContainers.forEach((c) => {
+        // If menu is open and we switch to mobile, remove any desktop padding
+        if (isMobile && c.classList.contains('open')) {
+            DOM.chatContainer.style.paddingRight = '';
+            DOM.chatContainer.style.paddingLeft = '';
+        }
+        // If menu is open and we switch to desktop, apply desktop padding
+        else if (!isMobile && c.classList.contains('open')) {
+            DOM.chatContainer.style.paddingRight = '10%';
+            DOM.chatContainer.style.paddingLeft = '10%';
+        }
+        // If menu is closed and we're on desktop, ensure default desktop padding
+        else if (!isMobile && !c.classList.contains('open')) {
+            DOM.chatContainer.style.paddingRight = '20%';
+            DOM.chatContainer.style.paddingLeft = '20%';
+        }
+    });
+
+
 }

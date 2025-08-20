@@ -1,6 +1,6 @@
 /* Menu and Navigation Components */
 
-#menu-container {
+.sidebar-container {
   width: 0;
   min-width: 0;
   overflow: hidden;
@@ -16,7 +16,7 @@
   pointer-events: none;
 }
 
-#menu-container.open {
+.sidebar-container.open {
   width: 30dvw;
   padding: 20px;
   left: 48px;

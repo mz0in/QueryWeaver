@@ -7,14 +7,14 @@ import { initChat } from './modules/messages.js';
 import { sendMessage, pauseRequest } from './modules/chat.js';
 import { loadGraphs, handleFileUpload, onGraphChange } from './modules/graphs.js';
 import { 
-    toggleMenu, 
+    toggleContainer, 
     showResetConfirmation, 
     hideResetConfirmation, 
     handleResetConfirmation,
     setupUserProfileDropdown,
     setupThemeToggle,
     setupToolbar,
-    handleWindowResize
+    handleWindowResize,
 } from './modules/ui.js';
 import { setupAuthenticationModal, setupDatabaseModal } from './modules/modals.js';
 
@@ -44,7 +44,10 @@ function setupEventListeners() {
     });
 
     // Menu functionality
-    DOM.menuButton.addEventListener('click', toggleMenu);
+    DOM.menuButton.addEventListener('click', () => toggleContainer(DOM.menuContainer));
+
+    // Schema functionality
+    DOM.schemaButton.addEventListener('click', () => toggleContainer(DOM.schemaContainer));
 
     // Reset functionality
     DOM.newChatButton.addEventListener('click', showResetConfirmation);

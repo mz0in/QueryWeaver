@@ -19,15 +19,15 @@
 
 /* Menu Responsive */
 @media (max-width: 768px) {
-  #menu-container {
+  .sidebar-container {
     position: fixed;
     top: 0;
     left: 0;
     height: 100vh;
     z-index: 999;
   }
-  
-  #menu-container.open {
+
+  .sidebar-container.open {
     width: 80vw;
     padding: 15px;
   }
