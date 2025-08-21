@@ -70,7 +70,7 @@ Install frontend deps and build (recommended):
 
 ```bash
 make install   # installs backend and frontend deps
-make build     # runs the frontend build (produces app/public/js/app.js)
+make build-prod     # runs the frontend production build (produces app/public/js/app.js)
 ```
 
 Or run directly from the `app/` folder:
