@@ -5,9 +5,8 @@ import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
-from typing import Dict, Any
 
-from fastapi import APIRouter, Request, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Request, HTTPException, UploadFile, File
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
@@ -328,7 +327,10 @@ async def query_graph(request: Request, graph_id: str, chat_data: ChatRequest):
                     logging.info("Finding relevant tables took %.2f seconds", find_elapsed)
                     # Total time for the pre-analysis phase
                     step1_elapsed = time.perf_counter() - step1_start
-                    logging.info("Step 1 (relevancy + table finding) took %.2f seconds", step1_elapsed)
+                    logging.info(
+                        "Step 1 (relevancy + table finding) took %.2f seconds",
+                        step1_elapsed,
+                    )
                 except FuturesTimeoutError:
                     yield json.dumps(
                         {
@@ -506,13 +508,21 @@ What this will do:
 
 @graphs_router.post("/{graph_id}/confirm")
 @token_required
-async def confirm_destructive_operation(request: Request, graph_id: str, confirm_data: ConfirmRequest):
+async def confirm_destructive_operation(
+    request: Request,
+    graph_id: str,
+    confirm_data: ConfirmRequest,
+):
     """
     Handle user confirmation for destructive SQL operations
     """
     graph_id = request.state.user_id + "_" + graph_id.strip()
-    
-    confirmation = confirm_data.confirmation.strip().upper() if hasattr(confirm_data, 'confirmation') else ""
+
+    if hasattr(confirm_data, 'confirmation'):
+        confirmation = confirm_data.confirmation.strip().upper()
+    else:
+        confirmation = ""
+
     sql_query = confirm_data.sql_query if hasattr(confirm_data, 'sql_query') else ""
     queries_history = confirm_data.chat if hasattr(confirm_data, 'chat') else []
 
