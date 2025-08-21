@@ -28,6 +28,9 @@ Makefile
 setup_e2e_tests.sh
 pytest.ini
 .pylintrc
+Pipfile
+Pipfile.lock
+Pipfile.new
 
 # Large example files
 examples/
@@ -39,3 +42,8 @@ examples/
 README.md
 SECURITY.md
 LICENSE
+
+# Additional exclusions for size optimization
+api/static/js/
+api/static/css/
+api/static/img/
