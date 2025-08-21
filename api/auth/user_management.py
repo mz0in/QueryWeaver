@@ -13,7 +13,7 @@ from authlib.integrations.starlette_client import OAuth
 from api.extensions import db
 
 
-def ensure_user_in_organizations(provider_user_id, email, name, provider, picture=None):
+async def ensure_user_in_organizations(provider_user_id, email, name, provider, picture=None):
     """
     Check if identity exists in Organizations graph, create if not.
     Creates separate Identity and User nodes with proper relationships.
@@ -124,7 +124,7 @@ def ensure_user_in_organizations(provider_user_id, email, name, provider, pictur
         return False, None
 
 
-def update_identity_last_login(provider, provider_user_id):
+async def update_identity_last_login(provider, provider_user_id):
     """Update the last login timestamp for an existing identity"""
     # Input validation
     if not provider or not provider_user_id:

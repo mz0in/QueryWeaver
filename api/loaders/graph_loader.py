@@ -9,7 +9,7 @@ from api.extensions import db
 from api.utils import generate_db_description
 
 
-def load_to_graph(
+async def load_to_graph(
     graph_id: str,
     entities: dict,
     relationships: dict,

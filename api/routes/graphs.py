@@ -83,7 +83,7 @@ async def list_graphs(request: Request):
     This route is used to list all the graphs that are available in the database.
     """
     user_id = request.state.user_id
-    user_graphs = db.list_graphs()
+    user_graphs = await db.list_graphs()
     # Only include graphs that start with user_id + '_', and strip the prefix
     filtered_graphs = [graph[len(f"{user_id}_"):]
                        for graph in user_graphs if graph.startswith(f"{user_id}_")]
@@ -289,7 +289,7 @@ async def query_graph(request: Request, graph_id: str, chat_data: ChatRequest):
                 "message": "Step 1: Analyzing user query and generating SQL..."}
         yield json.dumps(step) + MESSAGE_DELIMITER
         # Ensure the database description is loaded
-        db_description, db_url = get_db_description(graph_id)
+        db_description, db_url = await get_db_description(graph_id)
 
         # Determine database type and get appropriate loader
         db_type, loader_class = get_database_type_and_loader(db_url)
@@ -520,10 +520,10 @@ async def confirm_destructive_operation(request: Request, graph_id: str, confirm
         raise HTTPException(status_code=400, detail="No SQL query provided")
 
     # Create a generator function for streaming the confirmation response
-    def generate_confirmation():
+    async def generate_confirmation():
         if confirmation == "CONFIRM":
             try:
-                db_description, db_url = get_db_description(graph_id)
+                db_description, db_url = await get_db_description(graph_id)
 
                 # Determine database type and get appropriate loader
                 db_type, loader_class = get_database_type_and_loader(db_url)
