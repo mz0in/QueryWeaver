@@ -28,9 +28,6 @@ Makefile
 setup_e2e_tests.sh
 pytest.ini
 .pylintrc
-Pipfile
-Pipfile.lock
-Pipfile.new
 
 # Large example files
 examples/
