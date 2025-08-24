@@ -21,7 +21,7 @@ from api.auth.user_management import validate_and_cache_user
 auth_router = APIRouter()
 TEMPLATES_DIR = str((Path(__file__).resolve().parents[1] / "../app/templates").resolve())
 
-TEMPLATES_CACHE_DIR = "./.jinja_cache"
+TEMPLATES_CACHE_DIR = "/tmp/jinja_cache"
 os.makedirs(TEMPLATES_CACHE_DIR, exist_ok=True)  # ✅ ensures the folder exists
 
 templates = Jinja2Templates(
