@@ -695,3 +695,28 @@ async def refresh_graph_schema(request: Request, graph_id: str):
             "success": False,
             "error": "Error refreshing schema"
         }, status_code=500)
+
+@graphs_router.delete("/{graph_id}")
+@token_required
+async def delete_graph(request: Request, graph_id: str):
+    """Delete the specified graph (namespaced to the user).
+
+    This will attempt to delete the FalkorDB graph belonging to the
+    authenticated user. The graph id used by the client is stripped of
+    namespace and will be namespaced using the user's id from the request
+    state.
+    """
+    if not graph_id or not isinstance(graph_id, str):
+        return JSONResponse(content={"error": "Invalid graph_id"}, status_code=400)
+
+    graph_id = graph_id.strip()[:200]
+    namespaced = request.state.user_id + "_" + graph_id
+
+    try:
+        # Select and delete the graph using the FalkorDB client API
+        graph = db.select_graph(namespaced)
+        graph.delete()
+        return JSONResponse(content={"success": True, "graph": graph_id})
+    except Exception as e:
+        logging.exception("Failed to delete graph %s: %s", sanitize_log_input(namespaced), e)
+        return JSONResponse(content={"error": "Failed to delete graph"}, status_code=500)
