@@ -74,31 +74,6 @@ async def _query_graph(
     result = await graph.query(query, params or {}, timeout=timeout)
     return result.result_set
 
-
-async def _embed_and_query(
-    graph,
-    description: str,
-    query: str
-) -> List[Dict[str, Any]]:
-    """
-    Embed a description, run the query, and return unique results.
-
-    Args:
-        graph: The graph database instance.
-        description: The description to embed.
-        query: The query string to execute.
-
-    Returns:
-        List of query results.
-    """
-    embedding_result = Config.EMBEDDING_MODEL.embed(description)
-    rows = await _query_graph(
-        graph,
-        query,
-        {"embedding": embedding_result[0]},
-    )
-    return rows
-
 async def _find_tables(
     graph,
     embeddings: List[List[float]]
