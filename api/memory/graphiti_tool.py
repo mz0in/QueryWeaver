@@ -30,11 +30,37 @@ class CognitiveMemorySystem:
     2. Semantic Memory - Facts and knowledge about databases/queries
     """
     
-    def __init__(self, falkor_db, user_id):
+    def __init__(self, falkor_db):
         """Initialize cognitive memory system with FalkorDB."""
-        self.falkor_driver = FalkorDriver(falkor_db, database=f"{user_id}_memory")
-        self.graphiti_client = Graphiti(self.falkor_driver)
-        self.user_id = user_id
+        self.falkor_db = falkor_db
+        self.user_clients = {}  # Cache for user-specific Graphiti clients
+    
+    def _get_user_graphiti_client(self, user_id: str):
+        """Get or create Graphiti client for specific user with dedicated database."""
+        if not GRAPHITI_AVAILABLE:
+            return None
+            
+        # Check if we already have a client for this user
+        if user_id in self.user_clients:
+            return self.user_clients[user_id]
+            
+        try:
+            # Create FalkorDB driver with user-specific database
+            user_memory_db = f"{user_id}_memory"
+            falkor_driver = FalkorDriver(self.falkor_db, database=user_memory_db)
+            
+            # Create Graphiti client for this user's memory database
+            user_graphiti_client = Graphiti(falkor_driver)
+            
+            # Cache the client for future use
+            self.user_clients[user_id] = user_graphiti_client
+            
+            print(f"Created Graphiti client for user {user_id} with database: {user_memory_db}")
+            return user_graphiti_client
+            
+        except Exception as e:
+            print(f"Failed to create user-specific Graphiti client for {user_id}: {e}")
+            return None
 
     # ===== EPISODIC MEMORY =====
     async def save_episodic_memory(self, user_id: str, conversation: List[Dict[str, Any]], 
