@@ -20,6 +20,7 @@ import {
 } from './modules/ui';
 import { setupAuthenticationModal, setupDatabaseModal } from './modules/modals';
 import { showGraph } from './modules/schema';
+import { initLeftToolbar } from './modules/left_toolbar';
 
 async function loadAndShowGraph(selected: string | undefined) {
     if (!selected) return;
@@ -104,6 +105,8 @@ function setupUIComponents() {
     setupAuthenticationModal();
     setupDatabaseModal();
     setupToolbar();
+    // initialize left toolbar behavior (burger, responsive default)
+    initLeftToolbar();
     setupCustomDropdown();
 }
 
