@@ -14,6 +14,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from api.routes.auth import auth_router, init_auth
 from api.routes.graphs import graphs_router
 from api.routes.database import database_router
+from api.routes.tokens import tokens_router
 
 # Load environment variables from .env file
 load_dotenv()
@@ -82,6 +83,7 @@ def create_app():
     app.include_router(auth_router)
     app.include_router(graphs_router, prefix="/graphs")
     app.include_router(database_router)
+    app.include_router(tokens_router, prefix="/api/tokens")
 
     @app.exception_handler(Exception)
     async def handle_oauth_error(request: Request, exc: Exception):
