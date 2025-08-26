@@ -152,7 +152,7 @@ async def google_authorized(request: Request) -> RedirectResponse:
         if user_info:
 
             user_data = {
-                'id': user_info.get('sub'),
+                'id': user_info.get('id') or user_info.get('sub'),
                 'email': user_info.get('email'),
                 'name': user_info.get('name'),
                 'picture': user_info.get('picture'),
