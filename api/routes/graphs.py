@@ -263,284 +263,284 @@ async def load_graph(request: Request, data: GraphData = None, file: UploadFile 
     raise HTTPException(status_code=400, detail="Failed to load graph data")
 
 
-@graphs_router.post("/{graph_id}")
-@token_required
-async def query_graph(request: Request, graph_id: str, chat_data: ChatRequest):
-    """
-    text2sql
-    """
-    # Input validation
-    if not graph_id or not isinstance(graph_id, str):
-        raise HTTPException(status_code=400, detail="Invalid graph_id")
+# @graphs_router.post("/{graph_id}")
+# @token_required
+# async def query_graph(request: Request, graph_id: str, chat_data: ChatRequest):
+#     """
+#     text2sql
+#     """
+#     # Input validation
+#     if not graph_id or not isinstance(graph_id, str):
+#         raise HTTPException(status_code=400, detail="Invalid graph_id")
 
-    # Sanitize graph_id to prevent injection
-    graph_id = graph_id.strip()[:100]  # Limit length and strip whitespace
-    if not graph_id:
-        raise HTTPException(status_code=400, detail="Invalid graph_id")
+#     # Sanitize graph_id to prevent injection
+#     graph_id = graph_id.strip()[:100]  # Limit length and strip whitespace
+#     if not graph_id:
+#         raise HTTPException(status_code=400, detail="Invalid graph_id")
 
-    graph_id = f"{request.state.user_id}_{graph_id}"
+#     graph_id = f"{request.state.user_id}_{graph_id}"
 
-    queries_history = chat_data.chat if hasattr(chat_data, 'chat') else None
-    result_history = chat_data.result if hasattr(chat_data, 'result') else None
-    instructions = chat_data.instructions if hasattr(chat_data, 'instructions') else None
+#     queries_history = chat_data.chat if hasattr(chat_data, 'chat') else None
+#     result_history = chat_data.result if hasattr(chat_data, 'result') else None
+#     instructions = chat_data.instructions if hasattr(chat_data, 'instructions') else None
 
-    if not queries_history or not isinstance(queries_history, list):
-        raise HTTPException(status_code=400, detail="Invalid or missing chat history")
+#     if not queries_history or not isinstance(queries_history, list):
+#         raise HTTPException(status_code=400, detail="Invalid or missing chat history")
 
-    if len(queries_history) == 0:
-        raise HTTPException(status_code=400, detail="Empty chat history")
+#     if len(queries_history) == 0:
+#         raise HTTPException(status_code=400, detail="Empty chat history")
 
-    logging.info("User Query: %s", sanitize_query(queries_history[-1]))
+#     logging.info("User Query: %s", sanitize_query(queries_history[-1]))
 
-    # Create a generator function for streaming
-    async def generate():
-        # Start overall timing
-        overall_start = time.perf_counter()
-        logging.info("Starting query processing pipeline for query: %s",
-                     sanitize_query(queries_history[-1]))
+#     # Create a generator function for streaming
+#     async def generate():
+#         # Start overall timing
+#         overall_start = time.perf_counter()
+#         logging.info("Starting query processing pipeline for query: %s",
+#                      sanitize_query(queries_history[-1]))
 
-        agent_rel = RelevancyAgent(queries_history, result_history)
-        agent_an = AnalysisAgent(queries_history, result_history)
+#         agent_rel = RelevancyAgent(queries_history, result_history)
+#         agent_an = AnalysisAgent(queries_history, result_history)
 
-        step = {"type": "reasoning_step",
-                "message": "Step 1: Analyzing user query and generating SQL..."}
-        yield json.dumps(step) + MESSAGE_DELIMITER
-        # Ensure the database description is loaded
-        db_description, db_url = await get_db_description(graph_id)
+#         step = {"type": "reasoning_step",
+#                 "message": "Step 1: Analyzing user query and generating SQL..."}
+#         yield json.dumps(step) + MESSAGE_DELIMITER
+#         # Ensure the database description is loaded
+#         db_description, db_url = await get_db_description(graph_id)
 
-        # Determine database type and get appropriate loader
-        db_type, loader_class = get_database_type_and_loader(db_url)
+#         # Determine database type and get appropriate loader
+#         db_type, loader_class = get_database_type_and_loader(db_url)
 
-        if not loader_class:
-            overall_elapsed = time.perf_counter() - overall_start
-            logging.info("Query processing failed (no loader) - Total time: %.2f seconds",
-                         overall_elapsed)
-            yield json.dumps({
-                "type": "error",
-                "message": "Unable to determine database type"
-            }) + MESSAGE_DELIMITER
-            return
+#         if not loader_class:
+#             overall_elapsed = time.perf_counter() - overall_start
+#             logging.info("Query processing failed (no loader) - Total time: %.2f seconds",
+#                          overall_elapsed)
+#             yield json.dumps({
+#                 "type": "error",
+#                 "message": "Unable to determine database type"
+#             }) + MESSAGE_DELIMITER
+#             return
 
-        # Start both tasks concurrently
-        find_task = asyncio.create_task(find(graph_id, queries_history, db_description))
+#         # Start both tasks concurrently
+#         find_task = asyncio.create_task(find(graph_id, queries_history, db_description))
 
-        relevancy_task = asyncio.create_task(agent_rel.get_answer(
-            queries_history[-1], db_description
-        ))
+#         relevancy_task = asyncio.create_task(agent_rel.get_answer(
+#             queries_history[-1], db_description
+#         ))
 
-        logging.info("Starting relevancy check and graph analysis concurrently")
+#         logging.info("Starting relevancy check and graph analysis concurrently")
 
-        # Wait for relevancy check first
-        answer_rel = await relevancy_task
+#         # Wait for relevancy check first
+#         answer_rel = await relevancy_task
 
-        if answer_rel["status"] != "On-topic":
-            # Cancel the find task since query is off-topic
-            find_task.cancel()
-            try:
-                await find_task
-            except asyncio.CancelledError:
-                logging.info("Find task cancelled due to off-topic query")
+#         if answer_rel["status"] != "On-topic":
+#             # Cancel the find task since query is off-topic
+#             find_task.cancel()
+#             try:
+#                 await find_task
+#             except asyncio.CancelledError:
+#                 logging.info("Find task cancelled due to off-topic query")
 
-            step = {
-                "type": "followup_questions",
-                "message": "Off topic question: " + answer_rel["reason"],
-            }
-            logging.info("SQL Fail reason: %s", answer_rel["reason"])
-            yield json.dumps(step) + MESSAGE_DELIMITER
-            # Total time for off-topic query
-            overall_elapsed = time.perf_counter() - overall_start
-            logging.info("Query processing completed (off-topic) - Total time: %.2f seconds",
-                         overall_elapsed)
-        else:
-            # Query is on-topic, wait for find results
-            result = await find_task
+#             step = {
+#                 "type": "followup_questions",
+#                 "message": "Off topic question: " + answer_rel["reason"],
+#             }
+#             logging.info("SQL Fail reason: %s", answer_rel["reason"])
+#             yield json.dumps(step) + MESSAGE_DELIMITER
+#             # Total time for off-topic query
+#             overall_elapsed = time.perf_counter() - overall_start
+#             logging.info("Query processing completed (off-topic) - Total time: %.2f seconds",
+#                          overall_elapsed)
+#         else:
+#             # Query is on-topic, wait for find results
+#             result = await find_task
 
-            logging.info("Calling to analysis agent with query: %s",
-                         sanitize_query(queries_history[-1]))
+#             logging.info("Calling to analysis agent with query: %s",
+#                          sanitize_query(queries_history[-1]))
 
-            logging.info("Starting SQL generation with analysis agent")
-            answer_an = agent_an.get_analysis(
-                queries_history[-1], result, db_description, instructions
-            )
+#             logging.info("Starting SQL generation with analysis agent")
+#             answer_an = agent_an.get_analysis(
+#                 queries_history[-1], result, db_description, instructions
+#             )
 
-            logging.info("Generated SQL query: %s", answer_an['sql_query'])
-            yield json.dumps(
-                {
-                    "type": "final_result",
-                    "data": answer_an["sql_query"],
-                    "conf": answer_an["confidence"],
-                    "miss": answer_an["missing_information"],
-                    "amb": answer_an["ambiguities"],
-                    "exp": answer_an["explanation"],
-                    "is_valid": answer_an["is_sql_translatable"],
-                }
-            ) + MESSAGE_DELIMITER
+#             logging.info("Generated SQL query: %s", answer_an['sql_query'])
+#             yield json.dumps(
+#                 {
+#                     "type": "final_result",
+#                     "data": answer_an["sql_query"],
+#                     "conf": answer_an["confidence"],
+#                     "miss": answer_an["missing_information"],
+#                     "amb": answer_an["ambiguities"],
+#                     "exp": answer_an["explanation"],
+#                     "is_valid": answer_an["is_sql_translatable"],
+#                 }
+#             ) + MESSAGE_DELIMITER
 
-            # If the SQL query is valid, execute it using the postgress database db_url
-            if answer_an["is_sql_translatable"]:
-                # Check if this is a destructive operation that requires confirmation
-                sql_query = answer_an["sql_query"]
-                sql_type = sql_query.strip().split()[0].upper() if sql_query else ""
+#             # If the SQL query is valid, execute it using the postgress database db_url
+#             if answer_an["is_sql_translatable"]:
+#                 # Check if this is a destructive operation that requires confirmation
+#                 sql_query = answer_an["sql_query"]
+#                 sql_type = sql_query.strip().split()[0].upper() if sql_query else ""
 
-                destructive_ops = ['INSERT', 'UPDATE', 'DELETE', 'DROP',
-                                  'CREATE', 'ALTER', 'TRUNCATE']
-                if sql_type in destructive_ops:
-                    # This is a destructive operation - ask for user confirmation
-                    confirmation_message = f"""⚠️ DESTRUCTIVE OPERATION DETECTED ⚠️
+#                 destructive_ops = ['INSERT', 'UPDATE', 'DELETE', 'DROP',
+#                                   'CREATE', 'ALTER', 'TRUNCATE']
+#                 if sql_type in destructive_ops:
+#                     # This is a destructive operation - ask for user confirmation
+#                     confirmation_message = f"""⚠️ DESTRUCTIVE OPERATION DETECTED ⚠️
 
-The generated SQL query will perform a **{sql_type}** operation:
+# The generated SQL query will perform a **{sql_type}** operation:
 
-SQL:
-{sql_query}
+# SQL:
+# {sql_query}
 
-What this will do:
-"""
-                    if sql_type == 'INSERT':
-                        confirmation_message += "• Add new data to the database"
-                    elif sql_type == 'UPDATE':
-                        confirmation_message += ("• Modify existing data in the "
-                                                "database")
-                    elif sql_type == 'DELETE':
-                        confirmation_message += ("• **PERMANENTLY DELETE** data "
-                                                "from the database")
-                    elif sql_type == 'DROP':
-                        confirmation_message += ("• **PERMANENTLY DELETE** entire "
-                                                "tables or database objects")
-                    elif sql_type == 'CREATE':
-                        confirmation_message += ("• Create new tables or database "
-                                                "objects")
-                    elif sql_type == 'ALTER':
-                        confirmation_message += ("• Modify the structure of existing "
-                                                "tables")
-                    elif sql_type == 'TRUNCATE':
-                        confirmation_message += ("• **PERMANENTLY DELETE ALL DATA** "
-                                                "from specified tables")
-                    confirmation_message += """
+# What this will do:
+# """
+#                     if sql_type == 'INSERT':
+#                         confirmation_message += "• Add new data to the database"
+#                     elif sql_type == 'UPDATE':
+#                         confirmation_message += ("• Modify existing data in the "
+#                                                 "database")
+#                     elif sql_type == 'DELETE':
+#                         confirmation_message += ("• **PERMANENTLY DELETE** data "
+#                                                 "from the database")
+#                     elif sql_type == 'DROP':
+#                         confirmation_message += ("• **PERMANENTLY DELETE** entire "
+#                                                 "tables or database objects")
+#                     elif sql_type == 'CREATE':
+#                         confirmation_message += ("• Create new tables or database "
+#                                                 "objects")
+#                     elif sql_type == 'ALTER':
+#                         confirmation_message += ("• Modify the structure of existing "
+#                                                 "tables")
+#                     elif sql_type == 'TRUNCATE':
+#                         confirmation_message += ("• **PERMANENTLY DELETE ALL DATA** "
+#                                                 "from specified tables")
+#                     confirmation_message += """
 
-⚠️ WARNING: This operation will make changes to your database and may be irreversible.
-"""
+# ⚠️ WARNING: This operation will make changes to your database and may be irreversible.
+# """
 
-                    yield json.dumps(
-                        {
-                            "type": "destructive_confirmation",
-                            "message": confirmation_message,
-                            "sql_query": sql_query,
-                            "operation_type": sql_type
-                        }
-                    ) + MESSAGE_DELIMITER
-                    # Log end-to-end time for destructive operation that requires confirmation
-                    overall_elapsed = time.perf_counter() - overall_start
-                    logging.info(
-                        "Query processing halted for confirmation - Total time: %.2f seconds",
-                        overall_elapsed
-                    )
-                    return  # Stop here and wait for user confirmation
+#                     yield json.dumps(
+#                         {
+#                             "type": "destructive_confirmation",
+#                             "message": confirmation_message,
+#                             "sql_query": sql_query,
+#                             "operation_type": sql_type
+#                         }
+#                     ) + MESSAGE_DELIMITER
+#                     # Log end-to-end time for destructive operation that requires confirmation
+#                     overall_elapsed = time.perf_counter() - overall_start
+#                     logging.info(
+#                         "Query processing halted for confirmation - Total time: %.2f seconds",
+#                         overall_elapsed
+#                     )
+#                     return  # Stop here and wait for user confirmation
 
-                try:
-                    step = {"type": "reasoning_step", "message": "Step 2: Executing SQL query"}
-                    yield json.dumps(step) + MESSAGE_DELIMITER
+#                 try:
+#                     step = {"type": "reasoning_step", "message": "Step 2: Executing SQL query"}
+#                     yield json.dumps(step) + MESSAGE_DELIMITER
 
-                    # Check if this query modifies the database schema using the appropriate loader
-                    is_schema_modifying, operation_type = (
-                        loader_class.is_schema_modifying_query(sql_query)
-                    )
+#                     # Check if this query modifies the database schema using the appropriate loader
+#                     is_schema_modifying, operation_type = (
+#                         loader_class.is_schema_modifying_query(sql_query)
+#                     )
 
-                    query_results = loader_class.execute_sql_query(answer_an["sql_query"], db_url)
+#                     query_results = loader_class.execute_sql_query(answer_an["sql_query"], db_url)
 
-                    yield json.dumps(
-                        {
-                            "type": "query_result",
-                            "data": query_results,
-                        }
-                    ) + MESSAGE_DELIMITER
+#                     yield json.dumps(
+#                         {
+#                             "type": "query_result",
+#                             "data": query_results,
+#                         }
+#                     ) + MESSAGE_DELIMITER
 
-                    # If schema was modified, refresh the graph using the appropriate loader
-                    if is_schema_modifying:
-                        step = {"type": "reasoning_step",
-                               "message": ("Step 3: Schema change detected - "
-                                         "refreshing graph...")}
-                        yield json.dumps(step) + MESSAGE_DELIMITER
+#                     # If schema was modified, refresh the graph using the appropriate loader
+#                     if is_schema_modifying:
+#                         step = {"type": "reasoning_step",
+#                                "message": ("Step 3: Schema change detected - "
+#                                          "refreshing graph...")}
+#                         yield json.dumps(step) + MESSAGE_DELIMITER
 
-                        refresh_result = await loader_class.refresh_graph_schema(
-                            graph_id, db_url)
-                        refresh_success, refresh_message = refresh_result
+#                         refresh_result = await loader_class.refresh_graph_schema(
+#                             graph_id, db_url)
+#                         refresh_success, refresh_message = refresh_result
 
-                        if refresh_success:
-                            refresh_msg = (f"✅ Schema change detected "
-                                         f"({operation_type} operation)\n\n"
-                                         f"🔄 Graph schema has been automatically "
-                                         f"refreshed with the latest database "
-                                         f"structure.")
-                            yield json.dumps(
-                                {
-                                    "type": "schema_refresh",
-                                    "message": refresh_msg,
-                                    "refresh_status": "success"
-                                }
-                            ) + MESSAGE_DELIMITER
-                        else:
-                            failure_msg = (f"⚠️ Schema was modified but graph "
-                                         f"refresh failed: {refresh_message}")
-                            yield json.dumps(
-                                {
-                                    "type": "schema_refresh",
-                                    "message": failure_msg,
-                                    "refresh_status": "failed"
-                                }
-                            ) + MESSAGE_DELIMITER
+#                         if refresh_success:
+#                             refresh_msg = (f"✅ Schema change detected "
+#                                          f"({operation_type} operation)\n\n"
+#                                          f"🔄 Graph schema has been automatically "
+#                                          f"refreshed with the latest database "
+#                                          f"structure.")
+#                             yield json.dumps(
+#                                 {
+#                                     "type": "schema_refresh",
+#                                     "message": refresh_msg,
+#                                     "refresh_status": "success"
+#                                 }
+#                             ) + MESSAGE_DELIMITER
+#                         else:
+#                             failure_msg = (f"⚠️ Schema was modified but graph "
+#                                          f"refresh failed: {refresh_message}")
+#                             yield json.dumps(
+#                                 {
+#                                     "type": "schema_refresh",
+#                                     "message": failure_msg,
+#                                     "refresh_status": "failed"
+#                                 }
+#                             ) + MESSAGE_DELIMITER
 
-                    # Generate user-readable response using AI
-                    step_num = "4" if is_schema_modifying else "3"
-                    step = {"type": "reasoning_step",
-                           "message": f"Step {step_num}: Generating user-friendly response"}
-                    yield json.dumps(step) + MESSAGE_DELIMITER
+#                     # Generate user-readable response using AI
+#                     step_num = "4" if is_schema_modifying else "3"
+#                     step = {"type": "reasoning_step",
+#                            "message": f"Step {step_num}: Generating user-friendly response"}
+#                     yield json.dumps(step) + MESSAGE_DELIMITER
 
-                    response_agent = ResponseFormatterAgent()
-                    user_readable_response = response_agent.format_response(
-                        user_query=queries_history[-1],
-                        sql_query=answer_an["sql_query"],
-                        query_results=query_results,
-                        db_description=db_description
-                    )
+#                     response_agent = ResponseFormatterAgent()
+#                     user_readable_response = response_agent.format_response(
+#                         user_query=queries_history[-1],
+#                         sql_query=answer_an["sql_query"],
+#                         query_results=query_results,
+#                         db_description=db_description
+#                     )
 
-                    yield json.dumps(
-                        {
-                            "type": "ai_response",
-                            "message": user_readable_response,
-                        }
-                    ) + MESSAGE_DELIMITER
+#                     yield json.dumps(
+#                         {
+#                             "type": "ai_response",
+#                             "message": user_readable_response,
+#                         }
+#                     ) + MESSAGE_DELIMITER
 
-                    # Log overall completion time
-                    overall_elapsed = time.perf_counter() - overall_start
-                    logging.info(
-                        "Query processing completed successfully - Total time: %.2f seconds",
-                        overall_elapsed
-                    )
+#                     # Log overall completion time
+#                     overall_elapsed = time.perf_counter() - overall_start
+#                     logging.info(
+#                         "Query processing completed successfully - Total time: %.2f seconds",
+#                         overall_elapsed
+#                     )
 
-                except Exception as e:
-                    overall_elapsed = time.perf_counter() - overall_start
-                    logging.error("Error executing SQL query: %s", str(e))
-                    logging.info(
-                        "Query processing failed during execution - Total time: %.2f seconds",
-                        overall_elapsed
-                    )
-                    yield json.dumps(
-                        {"type": "error", "message": "Error executing SQL query"}
-                    ) + MESSAGE_DELIMITER
-            else:
-                # SQL query is not valid/translatable
-                overall_elapsed = time.perf_counter() - overall_start
-                logging.info(
-                    "Query processing completed (non-translatable SQL) - Total time: %.2f seconds",
-                    overall_elapsed
-                )
+#                 except Exception as e:
+#                     overall_elapsed = time.perf_counter() - overall_start
+#                     logging.error("Error executing SQL query: %s", str(e))
+#                     logging.info(
+#                         "Query processing failed during execution - Total time: %.2f seconds",
+#                         overall_elapsed
+#                     )
+#                     yield json.dumps(
+#                         {"type": "error", "message": "Error executing SQL query"}
+#                     ) + MESSAGE_DELIMITER
+#             else:
+#                 # SQL query is not valid/translatable
+#                 overall_elapsed = time.perf_counter() - overall_start
+#                 logging.info(
+#                     "Query processing completed (non-translatable SQL) - Total time: %.2f seconds",
+#                     overall_elapsed
+#                 )
 
-        # Log timing summary at the end of processing
-        overall_elapsed = time.perf_counter() - overall_start
-        logging.info("Query processing pipeline completed - Total time: %.2f seconds",
-                     overall_elapsed)
+#         # Log timing summary at the end of processing
+#         overall_elapsed = time.perf_counter() - overall_start
+#         logging.info("Query processing pipeline completed - Total time: %.2f seconds",
+#                      overall_elapsed)
 
-    return StreamingResponse(generate(), media_type="application/json")
+#     return StreamingResponse(generate(), media_type="application/json")
 
 
 @graphs_router.post("/{graph_id}/confirm")
