@@ -140,12 +140,12 @@ async def _find_tables_by_columns(
                 nullable: columns.nullable
             })
     """
-    
+
     tasks = [
         _query_graph(graph, query, {"embedding": embedding})
         for embedding in embeddings
     ]
-    
+
     results = await asyncio.gather(*tasks)
     return [row for rows in results for row in rows]
 
@@ -200,7 +200,7 @@ async def _find_connecting_tables(
     pairs = [list(pair) for pair in combinations(table_names, 2)]
     if not pairs:
         return []
-    
+
     query = """
     UNWIND $pairs AS pair
     MATCH (a:Table {name: pair[0]})

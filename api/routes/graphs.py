@@ -97,9 +97,9 @@ async def list_graphs(request: Request):
     """
     user_id = request.state.user_id
     user_graphs = await db.list_graphs()
-    # Only include graphs that start with user_id + '_', and strip the prefix
-    filtered_graphs = [graph[len(f"{user_id}_"):]
-                       for graph in user_graphs if graph.startswith(f"{user_id}_")]
+    # Only include graphs that start with user_id + '|', and strip the prefix
+    filtered_graphs = [graph[len(f"{user_id}|"):]
+                       for graph in user_graphs if graph.startswith(f"{user_id}|")]
     return JSONResponse(content=filtered_graphs)
 
 
@@ -116,7 +116,7 @@ async def get_graph_data(request: Request, graph_id: str):
         return JSONResponse(content={"error": "Invalid graph_id"}, status_code=400)
 
     graph_id = graph_id.strip()[:200]
-    namespaced = request.state.user_id + "_" + graph_id
+    namespaced = f"{request.state.user_id}|{graph_id}"
 
     try:
         graph = db.select_graph(namespaced)
@@ -220,7 +220,7 @@ async def load_graph(request: Request, data: GraphData = None, file: UploadFile 
         if not hasattr(data, 'database') or not data.database:
             raise HTTPException(status_code=400, detail="Invalid JSON data")
 
-        graph_id = request.state.user_id + "_" + data.database
+        graph_id = f"{request.state.user_id}|{data.database}"
         success, result = await JSONLoader.load(graph_id, data.dict())
 
     # ✅ Handle File Upload
@@ -232,7 +232,7 @@ async def load_graph(request: Request, data: GraphData = None, file: UploadFile 
         if filename.endswith(".json"):
             try:
                 data = json.loads(content.decode("utf-8"))
-                graph_id = request.state.user_id + "_" + data.get("database", "")
+                graph_id = f"{request.state.user_id}|{data.get('database', '')}"
                 success, result = await JSONLoader.load(graph_id, data)
             except json.JSONDecodeError:
                 raise HTTPException(status_code=400, detail="Invalid JSON file")
@@ -240,13 +240,13 @@ async def load_graph(request: Request, data: GraphData = None, file: UploadFile 
         # ✅ Check if file is XML
         elif filename.endswith(".xml"):
             xml_data = content.decode("utf-8")
-            graph_id = request.state.user_id + "_" + filename.replace(".xml", "")
+            graph_id = f"{request.state.user_id}|{filename.replace('.xml', '')}"
             success, result = await ODataLoader.load(graph_id, xml_data)
 
         # ✅ Check if file is csv
         elif filename.endswith(".csv"):
             csv_data = content.decode("utf-8")
-            graph_id = request.state.user_id + "_" + filename.replace(".csv", "")
+            graph_id = f"{request.state.user_id}|{filename.replace('.csv', '')}"
             success, result = await CSVLoader.load(graph_id, csv_data)
 
         else:
@@ -278,7 +278,7 @@ async def query_graph(request: Request, graph_id: str, chat_data: ChatRequest):
     if not graph_id:
         raise HTTPException(status_code=400, detail="Invalid graph_id")
 
-    graph_id = request.state.user_id + "_" + graph_id
+    graph_id = f"{request.state.user_id}|{graph_id}"
 
     queries_history = chat_data.chat if hasattr(chat_data, 'chat') else None
     result_history = chat_data.result if hasattr(chat_data, 'result') else None
@@ -537,7 +537,7 @@ async def confirm_destructive_operation(
     """
     Handle user confirmation for destructive SQL operations
     """
-    graph_id = request.state.user_id + "_" + graph_id.strip()
+    graph_id = f"{request.state.user_id}|{graph_id.strip()}"
 
     if hasattr(confirm_data, 'confirmation'):
         confirmation = confirm_data.confirmation.strip().upper()
@@ -658,7 +658,7 @@ async def refresh_graph_schema(request: Request, graph_id: str):
     This endpoint allows users to manually trigger a schema refresh
     if they suspect the graph is out of sync with the database.
     """
-    graph_id = request.state.user_id + "_" + graph_id.strip()
+    graph_id = f"{request.state.user_id}|{graph_id.strip()}"
 
     try:
         # Get database connection details
