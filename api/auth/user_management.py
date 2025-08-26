@@ -1,5 +1,6 @@
 """User management and authentication functions for text2sql API."""
 
+import base64
 import logging
 import os
 import secrets
@@ -269,7 +270,8 @@ def token_required(func):
                 )
 
             # Attach user_id to request.state (like FASTAPI's g.user_id)
-            request.state.user_id = user_info.get("email")
+            # we're using the email as BASE64 encoded
+            request.state.user_id = base64.b64encode(user_info.get("email").encode()).decode()
             if not request.state.user_id:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
