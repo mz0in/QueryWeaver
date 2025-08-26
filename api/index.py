@@ -10,10 +10,10 @@ from api.app_factory import create_app
 def log_all_tasks(prefix=""):
     tasks = asyncio.all_tasks()
     if not tasks:
-        logging.info("%sNo running asyncio tasks", prefix)
+        logging.error("%sNo running asyncio tasks", prefix)
         return
     for t in tasks:
-        logging.info("%sTask: %r, done=%s, cancelled=%s", prefix, t, t.done(), t.cancelled())
+        logging.error("%sTask: %r, done=%s, cancelled=%s", prefix, t, t.done(), t.cancelled())
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
