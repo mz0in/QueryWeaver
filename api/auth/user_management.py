@@ -34,7 +34,7 @@ async def _get_user_info(api_token: str) -> Optional[Dict[str, Any]]:
         })
 
         if result.result_set and result.result_set[0][3]:
-            token_valid = result.result_set[0][0]
+            token_valid = result.result_set[0][3]
 
             # TODO delete invalid token from DB
             if token_valid:
