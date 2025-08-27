@@ -2,7 +2,6 @@
 
 import logging
 import os
-import secrets
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, HTTPException
@@ -11,6 +10,8 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from api.auth.oauth_handlers import setup_oauth_handlers
+from api.auth.user_management import SECRET_KEY
 from api.routes.auth import auth_router, init_auth
 from api.routes.graphs import graphs_router
 from api.routes.database import database_router
@@ -18,7 +19,6 @@ from api.routes.database import database_router
 # Load environment variables from .env file
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-
 
 class SecurityMiddleware(BaseHTTPMiddleware):
     """Middleware for security checks including static file access"""
@@ -51,16 +51,10 @@ def create_app():
         ),
     )
 
-    # Get secret key for sessions
-    secret_key = os.getenv("FASTAPI_SECRET_KEY")
-    if not secret_key:
-        secret_key = secrets.token_hex(32)
-        logging.warning("FASTAPI_SECRET_KEY not set, using generated key. Set this in production!")
-
     # Add session middleware with explicit settings to ensure OAuth state persists
     app.add_middleware(
         SessionMiddleware,
-        secret_key=secret_key,
+        secret_key=SECRET_KEY,
         session_cookie="qw_session",
         same_site="lax",  # allow top-level OAuth GET redirects to send cookies
         https_only=False,  # allow http on localhost in development
@@ -83,13 +77,15 @@ def create_app():
     app.include_router(graphs_router, prefix="/graphs")
     app.include_router(database_router)
 
+    setup_oauth_handlers(app, app.state.oauth)
+
     @app.exception_handler(Exception)
     async def handle_oauth_error(request: Request, exc: Exception):
         """Handle OAuth-related errors gracefully"""
         # Check if it's an OAuth-related error
+        # TODO check this scenario
         if "token" in str(exc).lower() or "oauth" in str(exc).lower():
             logging.warning("OAuth error occurred: %s", exc)
-            request.session.clear()
             return RedirectResponse(url="/", status_code=302)
 
         # If it's an HTTPException, re-raise so FastAPI handles it properly
@@ -98,12 +94,5 @@ def create_app():
 
         # For other errors, let them bubble up
         raise exc
-
-    # Add template globals
-    @app.middleware("http")
-    async def add_template_globals(request: Request, call_next):
-        request.state.google_tag_manager_id = os.getenv("GOOGLE_TAG_MANAGER_ID")
-        response = await call_next(request)
-        return response
 
     return app
