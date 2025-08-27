@@ -9,7 +9,7 @@ from fastapi import APIRouter, Request, HTTPException, UploadFile, File
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
-from api.agents import AnalysisAgent, RelevancyAgent, ResponseFormatterAgent
+from api.agents import AnalysisAgent, RelevancyAgent, ResponseFormatterAgent, FollowUpAgent
 from api.auth.user_management import token_required
 from api.extensions import db
 from api.graph import find, get_db_description
@@ -305,6 +305,7 @@ async def query_graph(request: Request, graph_id: str, chat_data: ChatRequest):
 
         agent_rel = RelevancyAgent(queries_history, result_history)
         agent_an = AnalysisAgent(queries_history, result_history)
+        follow_up_agent = FollowUpAgent(queries_history, result_history)
 
         step = {"type": "reasoning_step",
                 "message": "Step 1: Analyzing user query and generating SQL..."}
@@ -337,7 +338,7 @@ async def query_graph(request: Request, graph_id: str, chat_data: ChatRequest):
         # Wait for relevancy check first
         answer_rel = await relevancy_task
 
-        if False:#answer_rel["status"] != "On-topic":
+        if answer_rel["status"] != "On-topic":
             # Cancel the find task since query is off-topic
             find_task.cancel()
             try:
@@ -547,7 +548,21 @@ What this will do:
                         {"type": "error", "message": "Error executing SQL query"}
                     ) + MESSAGE_DELIMITER
             else:
-                # SQL query is not valid/translatable
+                # SQL query is not valid/translatable - generate follow-up questions
+                follow_up_result = follow_up_agent.generate_follow_up_question(
+                    user_question=queries_history[-1],
+                    analysis_result=answer_an,
+                    found_tables=result
+                )
+
+                # Send follow-up questions to help the user
+                yield json.dumps({
+                    "type": "followup_questions",
+                    "message": follow_up_result,
+                    "missing_information": answer_an.get("missing_information", ""),
+                    "ambiguities": answer_an.get("ambiguities", "")
+                }) + MESSAGE_DELIMITER
+
                 overall_elapsed = time.perf_counter() - overall_start
                 logging.info(
                     "Query processing completed (non-translatable SQL) - Total time: %.2f seconds",

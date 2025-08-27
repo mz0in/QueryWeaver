@@ -187,6 +187,11 @@ class AnalysisAgent(BaseAgent):
               you can combine them in a single SQL query.
             - Use the memory context to inform your SQL generation, considering user preferences and previous database interactions.
 
+            PERSONAL QUESTIONS HANDLING:
+            - Personal queries using "I", "my", "me" are valid database queries.
+            - Check memory context and schema for user identifiers (user_id, customer_id, etc.).
+            - If user identification is missing, add "User identification required for personal query" to missing_information.
+
             Provide your output ONLY in the following JSON structure:
 
             ```json
@@ -220,6 +225,7 @@ class AnalysisAgent(BaseAgent):
             9. If the question is a follow-up, resolve references using the
                conversation history and previous answers.
             10. Use memory context to provide more personalized and informed SQL generation.
+            11. For personal queries, check memory context for user identification; add to missing_information if absent.
 
             Again: OUTPUT ONLY VALID JSON. No explanations outside the JSON block. """
         return prompt

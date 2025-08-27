@@ -7,41 +7,48 @@ from .utils import BaseAgent, parse_response
 
 
 RELEVANCY_PROMPT = """
-You are an expert assistant tasked with determining whether the user's question aligns with a given database description and whether the question is appropriate. You receive two inputs:
+You are an expert assistant tasked with determining whether the user's question can be translated into a database query, regardless of how it's phrased. You receive two inputs:
 
 The user's question: {QUESTION_PLACEHOLDER}
 The database description: {DB_PLACEHOLDER}
+
 Please follow these instructions:
 
-Understand the question in the context of the database.
-• Ask yourself: "Does this question relate to the data or concepts described in the database description?"
-• Common tables that can be found in most of the systems considered "On-topic" even if it not explict in the database description.
-• Don't answer questions that related to yourself.
-• Don't answer questions that related to personal information unless it related to data in the schemas.
-• Questions about the user's (first person) defined as "personal" and is Off-topic.
-• Questions about yourself defined as "personal" and is Off-topic.
+Understand the question's intent and potential for database querying.
+• Ask yourself: "Can this question be answered by querying data from the database, even if it contains personal language or conversational elements?"
+• Focus on the ACTIONABLE INTENT rather than the phrasing style.
+• Questions with personal pronouns (I, my, me) are ALLOWED if they seek database information (e.g., "Show me the sales data", "I want to see customer records").
+• Conversational or personality-filled questions are ALLOWED if they have a clear data request (e.g., "I'm curious about our revenue trends", "Can you help me understand our customer demographics?").
+• Common tables and business concepts are considered "On-topic" even if not explicitly mentioned in the database description.
+• Questions about database structure, data analysis, reports, and insights are ALWAYS on-topic.
+
+Only reject questions that are:
+• Completely unrelated to data, databases, or business information
+• Asking about the AI system itself (not about data)
+• Requesting personal information about individuals not in the database
+• Offensive, illegal, or violating content guidelines
 
 Determine if the question is:
 • On-topic and appropriate:
-– If so, provide a JSON response in the following format:
+– If the question can potentially be answered with database queries, regardless of personal language used, provide:
 {{
 "status": "On-topic",
-"reason": "Brief explanation of why it is on-topic and appropriate."
+"reason": "Brief explanation of why it can be translated to a database query."
 "suggestions": []
 }}
 
 • Off-topic:
-– If the question does not align with the data or use cases implied by the schema, provide a JSON response:
+– If the question cannot be answered with any database query and is completely unrelated to data analysis, provide:
 {{
 "status": "Off-topic",
-"reason": "Short reason explaining why it is off-topic.",
+"reason": "Short reason explaining why it cannot be translated to a database query.",
 "suggestions": [
 "An alternative, high-level question about the schema..."
 ]
 }}
 
 • Inappropriate:
-– If the question is offensive, illegal, or otherwise violates content guidelines, provide a JSON response:
+– If the question is offensive, illegal, or otherwise violates content guidelines, provide:
 {{
 "status": "Inappropriate",
 "reason": "Short reason why it is inappropriate.",
@@ -50,23 +57,13 @@ Determine if the question is:
 ]
 }}
 
-Ensure your response is concise, polite, and helpful.
+Remember: Prioritize the question's potential for database querying over its conversational style or personal language.
 """
 
 
 class RelevancyAgent(BaseAgent):
     # pylint: disable=too-few-public-methods
     """Agent for determining relevancy of queries to database schema."""
-
-    def __init__(self, queries_history: list, result_history: list):
-        """Initialize the relevancy agent with query and result history."""
-        if result_history is None:
-            self.messages = []
-        else:
-            self.messages = []
-            for query, result in zip(queries_history[:-1], result_history):
-                self.messages.append({"role": "user", "content": query})
-                self.messages.append({"role": "assistant", "content": result})
 
     async def get_answer(self, user_question: str, database_desc: dict) -> dict:
         """Get relevancy assessment for user question against database description."""
