@@ -34,21 +34,24 @@ export function loadGraphs() {
         .then((data: string[]) => {
             console.log('Graphs loaded:', data);
             if (!data || data.length === 0) {
-                const option = document.createElement('option');
-                option.value = '';
-                option.textContent = 'No graphs available';
-                option.disabled = true;
-
+                // Clear custom dropdown and show no graphs state
+                clearGraphOptions();
+                
                 if (DOM.messageInput) DOM.messageInput.disabled = true;
                 if (DOM.submitButton) DOM.submitButton.disabled = true;
                 if (DOM.messageInput) DOM.messageInput.placeholder = 'Please upload a schema or connect a database to start chatting';
 
                 addMessage('No graphs are available. Please upload a schema file or connect to a database to get started.', false);
-                // set visible selected label to placeholder text
+                
+                // Update the visible selected label to show no graphs state
                 const selectedLabel = document.getElementById('graph-selected');
                 if (selectedLabel) {
-                    const dropdownText = selectedLabel.querySelector && selectedLabel.querySelector('.dropdown-text');
-                    if (dropdownText) dropdownText.textContent = 'Select Database'; else selectedLabel.textContent = 'Select Database';
+                    const dropdownText = selectedLabel.querySelector('.dropdown-text');
+                    if (dropdownText) {
+                        dropdownText.textContent = 'No graphs available';
+                    } else {
+                        selectedLabel.textContent = 'No graphs available';
+                    }
                 }
                 return;
             }
@@ -80,10 +83,12 @@ export function loadGraphs() {
                                 throw new Error(`Delete failed: ${resp.status} ${text}`);
                             }
                             addMessage(`Graph "${name}" deleted.`, false);
-                            loadGraphs();
                         } catch (err) {
                             console.error('Error deleting graph:', err);
                             addMessage('Error deleting graph: ' + (err as Error).message, false);
+                        } finally {
+                            // Always refresh the graph list after delete attempt
+                            loadGraphs();
                         }
                     });
                 });
@@ -143,8 +148,6 @@ async function onDeleteClick() {
             throw new Error(`Failed to delete graph: ${resp.status} ${text}`);
         }
         addMessage(`Graph '${graphName}' deleted.`, false);
-        // Reload graphs list
-        loadGraphs();
         // Clear current chat state if the deleted graph was selected
         if (window && (window as any).currentGraph === graphName) {
             (window as any).currentGraph = undefined;
@@ -152,6 +155,9 @@ async function onDeleteClick() {
     } catch (err) {
         console.error('Error deleting graph:', err);
         addMessage('Error deleting graph: ' + (err as Error).message, false);
+    } finally {
+        // Always reload graphs list after delete attempt
+        loadGraphs();
     }
 }
 
