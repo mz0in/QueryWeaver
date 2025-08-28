@@ -71,7 +71,7 @@ class FollowUpAgent(BaseAgent):
             completion_result = completion(
                 model=Config.COMPLETION_MODEL,
                 messages=[{"role": "user", "content": prompt}],
-                temperature=1.1
+                temperature=0.9
             )
             
             response = completion_result.choices[0].message.content.strip()

@@ -295,7 +295,6 @@ async def query_graph(request: Request, graph_id: str, chat_data: ChatRequest):
 
     memory_tool_task = asyncio.create_task(MemoryTool.create(request.state.user_id, graph_id))
 
-
     # Create a generator function for streaming
     async def generate():
         # Start overall timing
@@ -630,7 +629,6 @@ What this will do:
         overall_elapsed = time.perf_counter() - overall_start
         logging.info("Query processing pipeline completed - Total time: %.2f seconds",
                      overall_elapsed)
-
 
     return StreamingResponse(generate(), media_type="application/json")
 
