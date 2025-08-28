@@ -505,23 +505,8 @@ class MemoryTool:
 
     async def clean_memory(self, days: int = 7) -> Dict[str, Any]:
         """
-        Clean memory by deleting nodes older than a cutoff based on node.created_at
-        or relationship.timestamp.
-
-        - Assumes node.created_at is stored as numeric epoch seconds.
-        - Accepts either numeric or ISO-8601 strings for relationship timestamps.
-        - Supports dry-run for safe inspection.
-        - Deletes in batches to reduce memory pressure.
-
-        Args:
-            days: Retention window (nodes older than this are removed).
-            labels: Restrict to specific labels (e.g., ["Entity", "Query"]).
-            dry_run: If True, do not delete; only report what would be deleted.
-            batch_size: Number of nodes per deletion batch.
-
-        Returns:
-            Dict containing counts per label, totals, errors, and cutoff info.
         """
+        #TODO complete
         driver = self.graphiti_client.driver
         query = """
                 MATCH (n)
@@ -531,8 +516,8 @@ class MemoryTool:
                 DETACH DELETE n;
                 """
 
-        result, _, _ = await driver.execute_query(query)
-        print("debug", result)
+        # result, _, _ = await driver.execute_query(query)
+        # print("debug", result)
 
 
     async def summarize_conversation(self, conversation: Dict[str, Any]) -> Dict[str, Any]:
