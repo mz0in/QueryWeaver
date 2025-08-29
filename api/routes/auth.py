@@ -9,21 +9,18 @@ import time
 import secrets
 
 from pathlib import Path
-
-import httpx
-from authlib.common.errors import AuthlibBaseError
-from authlib.integrations.starlette_client import OAuth
 from urllib.parse import urljoin
+
+from authlib.integrations.starlette_client import OAuth
 
 from fastapi import APIRouter, Request, HTTPException, status
 from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
-from authlib.integrations.starlette_client import OAuth
 from jinja2 import Environment, FileSystemLoader, FileSystemBytecodeCache, select_autoescape
 from starlette.config import Config
 from pydantic import BaseModel
 
-from api.auth.user_management import delete_user_token, validate_and_cache_user, ensure_user_in_organizations
+from api.auth.user_management import delete_user_token, ensure_user_in_organizations, validate_user
 from api.extensions import db
 
 
