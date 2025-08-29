@@ -48,10 +48,8 @@ export function loadGraphs() {
                 if (selectedLabel) {
                     const dropdownText = selectedLabel.querySelector('.dropdown-text');
                     if (dropdownText) {
-                        dropdownText.textContent = 'No graphs available';
-                    } else {
-                        selectedLabel.textContent = 'No graphs available';
-                    }
+                        dropdownText.textContent = 'No Databases';
+                    } 
                 }
                 return;
             }
