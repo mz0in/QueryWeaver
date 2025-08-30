@@ -241,7 +241,10 @@ async def validate_user(request: Request) -> Tuple[Optional[Dict[str, Any]], boo
 
         # If still not found, also accept Authorization: Bearer <token>
         if not api_token:
-            auth_header = request.headers.get("authorization") or request.headers.get("Authorization")
+            auth_header = (
+                request.headers.get("authorization")
+                or request.headers.get("Authorization")
+            )
             if auth_header:
                 try:
                     parts = auth_header.split(None, 1)
