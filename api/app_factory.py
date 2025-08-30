@@ -85,16 +85,22 @@ def create_app():
 
     setup_oauth_handlers(app, app.state.oauth)
 
-    mcp = FastApiMCP(app,
-                     name="queryweaver",
-                     description="QueryWeaver MCP API, provides Text2SQL capabilities",
-                     include_operations=["list_databases",
-                                         "connect_database",
-                                         "database_schema",
-                                         "query_database"]
-                     )
+    # Control MCP endpoints via environment variable DISABLE_MCP
+    # Default: MCP is enabled unless DISABLE_MCP is set to true
+    disable_mcp = os.getenv("DISABLE_MCP", "false").lower() in ("1", "true", "yes")
+    if disable_mcp:
+        logging.info("MCP endpoints disabled via DISABLE_MCP environment variable")
+    else:
+        mcp = FastApiMCP(app,
+                         name="queryweaver",
+                         description="QueryWeaver MCP API, provides Text2SQL capabilities",
+                         include_operations=["list_databases",
+                                             "connect_database",
+                                             "database_schema",
+                                             "query_database"]
+                         )
 
-    mcp.mount_http()
+        mcp.mount_http()
 
     @app.exception_handler(Exception)
     async def handle_oauth_error(request: Request, exc: Exception):
