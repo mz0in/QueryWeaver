@@ -298,7 +298,7 @@
 .modal .close-btn {
   background: none;
   border: none;
-  font-size: 1.5em;
+  font-size: 3em;
   color: var(--text-secondary);
   cursor: pointer;
   padding: 0;
@@ -380,6 +380,25 @@
   margin-bottom: 2em;
 }
 
+.token-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  width: 100%;
+}
+
+.token-input {
+  flex: 1 1 700px; /* allow input to grow, prefer large width */
+  min-width: 300px;
+  padding: 0.6em 0.8em;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-family: monospace;
+  color: var(--text-primary);
+  background: var(--falkor-quaternary);
+  overflow-x: auto;
+}
+
 .alert {
   padding: 1.5em;
   border-radius: 6px;
@@ -406,7 +425,7 @@
 
 .token-display {
   display: flex;
-  gap: 1em;
+  gap: 0.5em;
   align-items: center;
 }
 

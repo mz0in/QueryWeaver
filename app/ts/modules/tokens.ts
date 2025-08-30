@@ -1,18 +1,9 @@
 /**
  * Token management functionality (TypeScript)
  */
-
 interface Token {
     token_id: string;
     created_at: number;
-    last_4_digits: string;
-}
-
-interface TokenResponse {
-    token: string;
-    token_id: string;
-    created_at: number;
-    last_4_digits: string;
 }
 
 interface TokenListResponse {
@@ -27,6 +18,7 @@ export function setupTokenManagement() {
     const closeTokensModal = document.getElementById('close-tokens-modal');
     const generateTokenBtn = document.getElementById('generate-token-btn');
     const copyTokenBtn = document.getElementById('copy-token-btn');
+    const toggleTokenVisibilityBtn = document.getElementById('toggle-token-visibility');
     const deleteTokenModal = document.getElementById('delete-token-modal');
     const closeDeleteTokenModal = document.getElementById('close-delete-token-modal');
     const confirmDeleteToken = document.getElementById('confirm-delete-token');
@@ -45,7 +37,8 @@ export function setupTokenManagement() {
             userProfileDropdown.classList.remove('show');
         }
         
-        tokensModal.style.display = 'block';
+        // Use flex so the overlay uses its centering styles (align-items/justify-content)
+        tokensModal.style.display = 'flex';
         await loadTokens();
     });
 
@@ -68,19 +61,39 @@ export function setupTokenManagement() {
         await generateToken();
     });
 
-    // Copy token to clipboard
+
+    // Copy token to clipboard (read the input value directly)
     copyTokenBtn?.addEventListener('click', function() {
         const tokenInput = document.getElementById('new-token-value') as HTMLInputElement;
         if (tokenInput) {
-            tokenInput.select();
-            document.execCommand('copy');
-            
-            // Show feedback
-            const originalText = copyTokenBtn.textContent;
-            copyTokenBtn.textContent = 'Copied!';
-            setTimeout(() => {
-                copyTokenBtn.textContent = originalText;
-            }, 2000);
+            const value = tokenInput.value || '';
+            if (value) {
+                navigator.clipboard?.writeText(value).then(() => {
+                    const originalText = copyTokenBtn.textContent;
+                    copyTokenBtn.textContent = 'Copied!';
+                    setTimeout(() => {
+                        copyTokenBtn.textContent = originalText as string;
+                    }, 2000);
+                }).catch(() => {
+                    tokenInput.select();
+                    document.execCommand('copy');
+                });
+            }
+        }
+    });
+
+    // Toggle token visibility: simply toggle input.type between password and text
+    toggleTokenVisibilityBtn?.addEventListener('click', function() {
+        const tokenInput = document.getElementById('new-token-value') as HTMLInputElement;
+        if (!tokenInput) return;
+        const btn = toggleTokenVisibilityBtn as HTMLButtonElement;
+        if (tokenInput.type === 'password') {
+            tokenInput.type = 'text';
+            btn.textContent = 'Hide';
+            setTimeout(() => tokenInput.select(), 50);
+        } else {
+            tokenInput.type = 'password';
+            btn.textContent = 'Show';
         }
     });
 
@@ -113,16 +126,20 @@ export function setupTokenManagement() {
         }
     });
 
-    // Handle escape key
+    // Handle escape key - check computed style to determine visibility
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
-            if (tokensModal && tokensModal.style.display === 'block') {
-                tokensModal.style.display = 'none';
-                hideTokenGenerated();
-            }
-            if (deleteTokenModal && deleteTokenModal.style.display === 'block') {
-                deleteTokenModal.style.display = 'none';
-                currentDeleteTokenId = null;
+            try {
+                if (tokensModal && getComputedStyle(tokensModal).display !== 'none') {
+                    tokensModal.style.display = 'none';
+                    hideTokenGenerated();
+                }
+                if (deleteTokenModal && getComputedStyle(deleteTokenModal).display !== 'none') {
+                    deleteTokenModal.style.display = 'none';
+                    currentDeleteTokenId = null;
+                }
+            } catch (err) {
+                // ignore if computed style fails for any reason
             }
         }
     });
@@ -168,10 +185,10 @@ function displayTokens(tokens: Token[]): void {
         tokens.forEach(token => {
             const row = document.createElement('tr');
             row.innerHTML = `
-                <td>****${token.last_4_digits}</td>
+                <td>****${token.token_id}</td>
                 <td>${formatDate(token.created_at)}</td>
                 <td>
-                    <button class="btn btn-danger btn-sm delete-token-btn" data-token-id="${token.token_id}" data-last4="${token.last_4_digits}">
+                    <button class="btn btn-danger btn-sm delete-token-btn" data-token-id="${token.token_id}">
                         Delete
                     </button>
                 </td>
@@ -182,11 +199,11 @@ function displayTokens(tokens: Token[]): void {
         // Add event listeners to delete buttons
         const deleteButtons = tokensTbody.querySelectorAll('.delete-token-btn');
         deleteButtons.forEach(button => {
-            button.addEventListener('click', function() {
-                const tokenId = (this as HTMLElement).getAttribute('data-token-id');
-                const last4 = (this as HTMLElement).getAttribute('data-last4');
-                if (tokenId && last4) {
-                    showDeleteTokenModal(tokenId, last4);
+            button.addEventListener('click', function(ev) {
+                const target = ev.currentTarget as HTMLElement;
+                const tokenId = target.getAttribute('data-token-id');
+                if (tokenId) {
+                    showDeleteTokenModal(tokenId);
                 }
             });
         });
@@ -213,8 +230,8 @@ async function generateToken(): Promise<void> {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
-        const data: TokenResponse = await response.json();
-        showTokenGenerated(data.token);
+        const data: Token = await response.json();
+        showTokenGenerated(data.token_id);
         await loadTokens(); // Refresh the tokens list
     } catch (error) {
         console.error('Error generating token:', error);
@@ -230,13 +247,10 @@ function showTokenGenerated(token: string): void {
     const tokenInput = document.getElementById('new-token-value') as HTMLInputElement;
 
     if (tokenGenerated && tokenInput) {
+        // Store the real token as the input's value and show it masked by default
         tokenInput.value = token;
+        tokenInput.type = 'password';
         tokenGenerated.style.display = 'block';
-        
-        // Auto-select the token for easy copying
-        setTimeout(() => {
-            tokenInput.select();
-        }, 100);
     }
 }
 
@@ -252,14 +266,14 @@ function hideTokenGenerated(): void {
     }
 }
 
-function showDeleteTokenModal(tokenId: string, last4: string): void {
+function showDeleteTokenModal(tokenId: string): void {
     const deleteTokenModal = document.getElementById('delete-token-modal');
     const deleteTokenLast4 = document.getElementById('delete-token-last4');
 
     if (deleteTokenModal && deleteTokenLast4) {
         currentDeleteTokenId = tokenId;
-        deleteTokenLast4.textContent = last4;
-        deleteTokenModal.style.display = 'block';
+        deleteTokenLast4.textContent = tokenId;
+        deleteTokenModal.style.display = 'flex'; // Use flex to ensure overlay centers content
     }
 }
 

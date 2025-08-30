@@ -13,7 +13,7 @@
                 </p>
                 
                 <div class="tokens-actions">
-                    <button id="generate-token-btn" class="btn btn-primary">Generate New Token</button>
+                    <button id="generate-token-btn" class="btn">Generate New Token</button>
                 </div>
 
                 {# Token generation success message #}
@@ -22,7 +22,10 @@
                         <h4>Token Generated Successfully!</h4>
                         <p><strong>Important:</strong> This is the only time you'll see this token. Copy it now and store it securely.</p>
                         <div class="token-display">
-                            <input type="text" id="new-token-value" readonly class="token-input">
+                            <div class="token-input-wrap">
+                                <input type="password" id="new-token-value" readonly class="token-input" aria-label="API token">
+                                <button id="toggle-token-visibility" class="btn btn-secondary" aria-label="Show token">Show</button>
+                            </div>
                             <button id="copy-token-btn" class="btn btn-secondary">Copy</button>
                         </div>
                     </div>

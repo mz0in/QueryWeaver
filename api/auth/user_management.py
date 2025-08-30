@@ -2,14 +2,12 @@
 
 import base64
 import logging
-from math import log
 import os
 import secrets
 from functools import wraps
 from typing import Tuple, Optional, Dict, Any
 
 from fastapi import Request, HTTPException, status
-from authlib.integrations.starlette_client import OAuth
 from api.extensions import db
 
 # Get secret key for sessions
@@ -93,7 +91,7 @@ async def ensure_user_in_organizations(provider_user_id: str, email: str, name: 
         return False, None
 
     # Validate provider is in allowed list
-    allowed_providers = ["google", "github"]
+    allowed_providers = ["google", "github", "api"]
     if provider not in allowed_providers:
         logging.error("Invalid provider: %s", provider)
         return False, None
@@ -228,6 +226,36 @@ async def update_identity_last_login(provider, provider_user_id):
                      provider, provider_user_id, e)
 
 
+def get_token(request: Request)-> Optional[str]:
+    """
+    Extract the API token from the request.
+    """
+
+    # Check cookies
+    api_token = request.cookies.get("api_token")
+    if api_token:
+        return api_token
+
+    # Check query parameters
+    api_token = request.query_params.get("api_token")
+    if api_token:
+        return api_token
+
+    # Check Authorization header
+    auth_header = (
+        request.headers.get("authorization")
+        or request.headers.get("Authorization")
+    )
+    if auth_header:
+        try:
+            parts = auth_header.split(None, 1)
+            if len(parts) == 2 and parts[0].lower() == "bearer":
+                return parts[1].strip()
+        except Exception:
+            pass
+
+    return None
+
 async def validate_user(request: Request) -> Tuple[Optional[Dict[str, Any]], bool]:
     """
     Helper function to validate token.
@@ -235,25 +263,7 @@ async def validate_user(request: Request) -> Tuple[Optional[Dict[str, Any]], boo
     Includes refresh handling for Google.
     """
     try:
-        # token might be in the cookie or in the URL (api_token) for API access
-        api_token = request.cookies.get("api_token")
-        if not api_token:
-            api_token = request.query_params.get("api_token")
-
-        # If still not found, also accept Authorization: Bearer <token>
-        if not api_token:
-            auth_header = (
-                request.headers.get("authorization")
-                or request.headers.get("Authorization")
-            )
-            if auth_header:
-                try:
-                    parts = auth_header.split(None, 1)
-                    if len(parts) == 2 and parts[0].lower() == "bearer":
-                        api_token = parts[1].strip()
-                except Exception:
-                    # If parsing fails, ignore and continue (will return unauthenticated)
-                    api_token = None
+        api_token = get_token(request)
 
         if api_token:
             db_info = await _get_user_info(api_token)
@@ -279,10 +289,6 @@ def token_required(func):
             user_info, is_authenticated = await validate_user(request)
 
             if not is_authenticated:
-                # Second attempt after clearing session to force re-validation
-                user_info, is_authenticated = await validate_user(request)
-
-            if not is_authenticated:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Unauthorized - Please log in or provide a valid API token"
@@ -290,7 +296,10 @@ def token_required(func):
 
             # Attach user_id to request.state (like FASTAPI's g.user_id)
             # we're using the email as BASE64 encoded
-            request.state.user_id = base64.b64encode(user_info.get("email").encode()).decode()
+            email = user_info.get("email")
+            request.state.user_id = base64.b64encode(email.encode()).decode()
+            request.state.user_email = email
+
             if not request.state.user_id:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
