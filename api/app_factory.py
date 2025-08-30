@@ -18,6 +18,7 @@ from api.auth.user_management import SECRET_KEY
 from api.routes.auth import auth_router, init_auth
 from api.routes.graphs import graphs_router
 from api.routes.database import database_router
+from api.routes.tokens import tokens_router
 
 # Load environment variables from .env file
 load_dotenv()
@@ -81,8 +82,9 @@ def create_app():
     app.include_router(auth_router)
     app.include_router(graphs_router, prefix="/graphs")
     app.include_router(database_router)
-    # app.include_router(mcp_router, prefix="/mcp")
+    app.include_router(tokens_router, prefix="/api/tokens")
 
+    # app.include_router(mcp_router, prefix="/mcp")
     setup_oauth_handlers(app, app.state.oauth)
 
     # Control MCP endpoints via environment variable DISABLE_MCP
