@@ -69,3 +69,4 @@ CLI
 namespace
 namespaced
 
+CSRF
