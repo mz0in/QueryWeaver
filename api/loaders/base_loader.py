@@ -1,7 +1,7 @@
 """Base loader module providing abstract base class for data loaders."""
 
 from abc import ABC, abstractmethod
-from typing import Tuple, List, Any
+from typing import AsyncGenerator, List, Any, Tuple
 from api.config import Config
 
 
@@ -9,7 +9,7 @@ class BaseLoader(ABC):
     """Abstract base class for data loaders."""
 
     @staticmethod
-    async def load(_graph_id: str, _data) -> Tuple[bool, str]:
+    async def load(_graph_id: str, _data) -> AsyncGenerator[tuple[bool, str], None]:
         """
         Load the graph data into the database.
         This method must be implemented by any subclass.
