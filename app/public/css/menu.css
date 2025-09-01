@@ -122,6 +122,11 @@
   justify-content: center;
 }
 
+#graph-select-refresh.loading svg {
+  animation: spin 0.5s linear infinite;
+  opacity: 0.5;
+}
+
 #graph-select-refresh svg {
   height: 20px;
   width: 20px;
