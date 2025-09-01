@@ -18,7 +18,7 @@ import {
     setupCustomDropdown
 } from './modules/ui';
 import { setupAuthenticationModal, setupDatabaseModal } from './modules/modals';
-import { showGraph } from './modules/schema';
+import { resizeGraph, showGraph } from './modules/schema';
 import { initLeftToolbar } from './modules/left_toolbar';
 
 async function loadAndShowGraph(selected: string | undefined) {
@@ -66,7 +66,8 @@ function setupEventListeners() {
         toggleContainer(DOM.schemaContainer as HTMLElement, async () => {
             const selected = DOM.graphSelect?.value;
             if (!selected) return;
-            await loadAndShowGraph(selected);
+            loadAndShowGraph(selected);
+            setTimeout(resizeGraph, 450);
         });
     });
 
@@ -89,8 +90,20 @@ function setupEventListeners() {
         const selected = DOM.graphSelect?.value;
         if (!selected) return;
         if (DOM.schemaContainer && DOM.schemaContainer.classList.contains('open')) {
-            await loadAndShowGraph(selected);
+            loadAndShowGraph(selected);
+            setTimeout(resizeGraph, 450);
         }
+    });
+
+    DOM.graphSelectRefresh?.addEventListener('click', () => {
+        const selected = DOM.graphSelect?.value;
+        if (!selected) return;
+        fetch(`/graphs/${encodeURIComponent(selected)}/refresh`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
     });
 
     DOM.fileUpload?.addEventListener('change', handleFileUpload);
