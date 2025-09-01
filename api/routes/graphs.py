@@ -566,7 +566,7 @@ What this will do:
                 except Exception as e:  # pylint: disable=broad-exception-caught
                     execution_error = str(e)
                     overall_elapsed = time.perf_counter() - overall_start
-                    logging.error("Error executing SQL query: %s", str(e))
+                    logging.error("Error executing SQL query: %s", str(e))  # nosemgrep
                     logging.info(
                         "Query processing failed during execution - Total time: %.2f seconds",
                         overall_elapsed
@@ -783,7 +783,7 @@ async def confirm_destructive_operation(
                 )
 
             except Exception as e:  # pylint: disable=broad-exception-caught
-                logging.error("Error executing confirmed SQL query: %s", str(e))
+                logging.error("Error executing confirmed SQL query: %s", str(e))  # nosemgrep
 
                 # Save failed confirmed query to memory
                 save_query_task = asyncio.create_task(

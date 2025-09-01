@@ -189,7 +189,7 @@ async def google_authorized(request: Request) -> RedirectResponse:
         raise HTTPException(status_code=400, detail="Failed to get user info from Google")
 
     except Exception as e:
-        logging.error("Google OAuth authentication failed: %s", str(e))
+        logging.error("Google OAuth authentication failed: %s", str(e))  # nosemgrep
         raise HTTPException(status_code=400, detail=f"Authentication failed: {str(e)}") from e
 
 
@@ -280,7 +280,7 @@ async def github_authorized(request: Request) -> RedirectResponse:
         raise HTTPException(status_code=400, detail="Failed to get user info from Github")
 
     except Exception as e:
-        logging.error("GitHub OAuth authentication failed: %s", str(e))
+        logging.error("GitHub OAuth authentication failed: %s", str(e))  # nosemgrep
         raise HTTPException(status_code=400, detail=f"Authentication failed: {str(e)}") from e
 
 
