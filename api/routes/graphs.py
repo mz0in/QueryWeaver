@@ -858,7 +858,8 @@ async def refresh_graph_schema(request: Request, graph_id: str):
 
         # Sanitize message to prevent log injection
         sanitized_message = message.replace('\n', ' ').replace('\r', ' ') if message else 'Unknown error'
-        logging.error("Schema refresh failed for graph %s: %s", graph_id, sanitized_message)  # nosemgrep
+        sanitized_graph_id = graph_id.replace('\n', ' ').replace('\r', ' ') if graph_id else 'Unknown'
+        logging.error("Schema refresh failed for graph %s: %s", sanitized_graph_id, sanitized_message)  # nosemgrep
         return JSONResponse({
             "success": False,
             "error": "Failed to refresh schema"
