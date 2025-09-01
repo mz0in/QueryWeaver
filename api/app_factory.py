@@ -18,6 +18,7 @@ from api.auth.user_management import SECRET_KEY
 from api.routes.auth import auth_router, init_auth
 from api.routes.graphs import graphs_router
 from api.routes.database import database_router
+from api.routes.tokens import tokens_router
 
 # Load environment variables from .env file
 load_dotenv()
@@ -56,13 +57,11 @@ def create_app():
 
     app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
-    # Add session middleware with explicit settings to ensure OAuth state persists
     app.add_middleware(
         SessionMiddleware,
         secret_key=SECRET_KEY,
-        session_cookie="qw_session",
         same_site="lax",  # allow top-level OAuth GET redirects to send cookies
-        https_only=False,  # allow http on localhost in development
+        https_only=False,  # True for HTTPS environments (staging/prod), False for HTTP dev
         max_age=60 * 60 * 24 * 14,  # 14 days - measured by seconds
     )
 
@@ -81,8 +80,9 @@ def create_app():
     app.include_router(auth_router)
     app.include_router(graphs_router, prefix="/graphs")
     app.include_router(database_router)
-    # app.include_router(mcp_router, prefix="/mcp")
+    app.include_router(tokens_router, prefix="/tokens")
 
+    # app.include_router(mcp_router, prefix="/mcp")
     setup_oauth_handlers(app, app.state.oauth)
 
     # Control MCP endpoints via environment variable DISABLE_MCP

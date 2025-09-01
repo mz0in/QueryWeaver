@@ -4,7 +4,7 @@ import datetime
 import decimal
 import logging
 import re
-from typing import Tuple, Dict, Any, List
+from typing import AsyncGenerator, Tuple, Dict, Any, List
 
 import tqdm
 import pymysql
@@ -44,6 +44,35 @@ class MySQLLoader(BaseLoader):
         r'^\s*CREATE\s+SCHEMA',
         r'^\s*DROP\s+SCHEMA',
     ]
+
+    @staticmethod
+    def _execute_count_query(cursor, table_name: str, col_name: str) -> Tuple[int, int]:
+        """
+        Execute query to get total count and distinct count for a column.
+        MySQL implementation returning counts from dictionary-style results.
+        """
+        query = f"""
+            SELECT COUNT(*) AS total_count,
+                COUNT(DISTINCT `{col_name}`) AS distinct_count
+            FROM `{table_name}`;
+        """
+
+        cursor.execute(query)
+        output = cursor.fetchall()
+        first_result = output[0]
+        return first_result['total_count'], first_result['distinct_count']
+
+    @staticmethod
+    def _execute_distinct_query(cursor, table_name: str, col_name: str) -> List[Any]:
+        """
+        Execute query to get distinct values for a column.
+        MySQL implementation handling dictionary-style results.
+        """
+        query = f"SELECT DISTINCT `{col_name}` FROM `{table_name}`;"
+        cursor.execute(query)
+
+        distinct_results = cursor.fetchall()
+        return [row[col_name] for row in distinct_results if row[col_name] is not None]
 
     @staticmethod
     def _serialize_value(value):
@@ -125,7 +154,7 @@ class MySQLLoader(BaseLoader):
         }
 
     @staticmethod
-    async def load(prefix: str, connection_url: str) -> Tuple[bool, str]:
+    async def load(prefix: str, connection_url: str) -> AsyncGenerator[tuple[bool, str], None]:
         """
         Load the graph data from a MySQL database into the graph database.
 
@@ -148,9 +177,11 @@ class MySQLLoader(BaseLoader):
             db_name = conn_params['database']
 
             # Get all table information
+            yield True, "Extracting table information..."
             entities = MySQLLoader.extract_tables_info(cursor, db_name)
 
             # Get all relationship information
+            yield True, "Extracting relationship information..."
             relationships = MySQLLoader.extract_relationships(cursor, db_name)
 
             # Close database connection
@@ -158,16 +189,17 @@ class MySQLLoader(BaseLoader):
             conn.close()
 
             # Load data into graph
+            yield True, "Loading data into graph..."
             await load_to_graph(f"{prefix}_{db_name}", entities, relationships,
                          db_name=db_name, db_url=connection_url)
 
-            return True, (f"MySQL schema loaded successfully. "
+            yield True, (f"MySQL schema loaded successfully. "
                          f"Found {len(entities)} tables.")
 
         except pymysql.MySQLError as e:
-            return False, f"MySQL connection error: {str(e)}"
+            yield False, f"MySQL connection error: {str(e)}"
         except Exception as e:
-            return False, f"Error loading MySQL schema: {str(e)}"
+            yield False, f"Error loading MySQL schema: {str(e)}"
 
     @staticmethod
     def extract_tables_info(cursor, db_name: str) -> Dict[str, Any]:
@@ -282,6 +314,12 @@ class MySQLLoader(BaseLoader):
 
             if column_default is not None:
                 description_parts.append(f"(Default: {column_default})")
+
+            # Add distinct values if applicable
+            distinct_values_desc = MySQLLoader.extract_distinct_values_for_column(
+                cursor, table_name, col_name
+            )
+            description_parts.extend(distinct_values_desc)
 
             columns_info[col_name] = {
                 'type': data_type,
@@ -515,13 +553,7 @@ class MySQLLoader(BaseLoader):
             conn.close()
 
             return result_list
-
-        except pymysql.MySQLError as e:
-            # Rollback in case of error
-            if 'conn' in locals():
-                conn.rollback()
-                cursor.close()
-                conn.close()
+        
         except pymysql.MySQLError as e:
             # Rollback in case of error
             if 'conn' in locals():
