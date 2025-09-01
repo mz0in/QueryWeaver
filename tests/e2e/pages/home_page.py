@@ -13,7 +13,7 @@ class HomePage(BasePage):
     MESSAGE_INPUT = "input[type='text'], textarea"
     SEND_BUTTON = "button[type='submit']"
     GRAPH_SELECTOR = "select[name='graph']"
-    FILE_UPLOAD = "input[type='file']"
+    FILE_UPLOAD = "#schema-upload"  # Updated to use correct ID from UI analysis
     LOADING_INDICATOR = ".loading"
 
     def navigate_to_home(self):
@@ -52,6 +52,12 @@ class HomePage(BasePage):
 
     def upload_file(self, file_path):
         """Upload a file."""
+        # The file input might not be visible, but we can still set files on it
+        file_input = self.page.query_selector(self.FILE_UPLOAD)
+        if not file_input:
+            raise Exception("File upload input not found")
+        
+        # Set the file even if input is not visible (common for file inputs)
         self.page.set_input_files(self.FILE_UPLOAD, file_path)
 
     def select_graph(self, graph_name):
