@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from redis import ResponseError
 
+from api.routes.database import connect_database, DatabaseConnectionRequest
 from api.agents import AnalysisAgent, RelevancyAgent, ResponseFormatterAgent, FollowUpAgent
 from api.auth.user_management import token_required
 from api.config import Config
@@ -789,47 +790,25 @@ async def refresh_graph_schema(request: Request, graph_id: str):
     if they suspect the graph is out of sync with the database.
     """
     graph_id = _graph_name(request, graph_id)
-
+    
     try:
-        # Get database connection details
+        # Get database description and URL
         _, db_url = await get_db_description(graph_id)
-
+        
         if not db_url or db_url == "No URL available for this database.":
-            return JSONResponse({
-                "success": False,
-                "error": "No database URL found for this graph"
-            }, status_code=400)
-
-        # Determine database type and get appropriate loader
-        db_type, loader_class = get_database_type_and_loader(db_url)
-
-        if not loader_class:
-            return JSONResponse({
-                "success": False,
-                "error": "Unable to determine database type"
-            }, status_code=400)
-
-        # Perform schema refresh using the appropriate loader
-        success, message = await loader_class.refresh_graph_schema(graph_id, db_url)
-
-        if success:
-            return JSONResponse({
-                "success": True,
-                "message": f"Graph schema refreshed successfully using {db_type}"
-            })
-
-        logging.error("Schema refresh failed for graph %s: %s", graph_id, message)
-        return JSONResponse({
-            "success": False,
-            "error": "Failed to refresh schema"
-        }, status_code=500)
-
+            raise HTTPException(status_code=404, detail="No database URL found for this graph")        
+        
+        # Create a database connection request with the stored URL
+        db_request = DatabaseConnectionRequest(url=db_url)
+        
+        # Call connect_database to refresh the schema by reconnecting
+        return connect_database(request, db_request)
+            
+    except HTTPException:
+        raise
     except Exception as e:
-        logging.error("Error in manual schema refresh: %s", e)
-        return JSONResponse({
-            "success": False,
-            "error": "Error refreshing schema"
-        }, status_code=500)
+        logging.error("Error in refresh_graph_schema: %s", str(e))
+        raise HTTPException(status_code=500, detail="Internal server error while refreshing schema")
 
 @graphs_router.delete("/{graph_id}")
 @token_required
