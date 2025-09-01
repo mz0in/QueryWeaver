@@ -1,6 +1,7 @@
 """Taxonomy agent for taxonomy classification of questions and SQL queries."""
 
 from litellm import completion
+from api.agents.utils import BaseAgent
 from api.config import Config
 
 
@@ -35,12 +36,10 @@ The question to the user:"
 """
 
 
-class TaxonomyAgent:
+class TaxonomyAgent(BaseAgent):
     # pylint: disable=too-few-public-methods
     """Agent for taxonomy classification of questions and SQL queries."""
 
-    def __init__(self):
-        """Initialize the taxonomy agent."""
 
     def get_answer(self, question: str, sql: str) -> str:
         """Get taxonomy classification for a question and SQL pair."""
