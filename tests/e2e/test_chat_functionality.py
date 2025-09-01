@@ -9,7 +9,7 @@ from tests.e2e.fixtures.test_data import TestDataFixtures
 class TestChatFunctionality:
     """Test chat and query functionality."""
 
-    @pytest.mark.skip(reason="Requires authentication and graph data")
+    @pytest.mark.skip(reason="Requires real Google/GitHub OAuth login and FalkorDB setup - not suitable for automated E2E testing")
     def test_send_basic_query(self, page_with_base_url):
         """Test sending a basic query through chat interface."""
         home_page = HomePage(page_with_base_url)
@@ -27,7 +27,7 @@ class TestChatFunctionality:
         messages = home_page.get_chat_messages()
         assert len(messages) > 0
 
-    @pytest.mark.skip(reason="Requires authentication and graph data")
+    @pytest.mark.skip(reason="Requires real Google/GitHub OAuth login and FalkorDB setup - not suitable for automated E2E testing")
     def test_multiple_queries(self, page_with_base_url):
         """Test sending multiple queries in sequence."""
         home_page = HomePage(page_with_base_url)
@@ -44,7 +44,7 @@ class TestChatFunctionality:
         messages = home_page.get_chat_messages()
         assert len(messages) >= 2
 
-    @pytest.mark.skip(reason="Requires authentication and graph selection")
+    @pytest.mark.skip(reason="Requires real Google/GitHub OAuth login and FalkorDB setup - not suitable for automated E2E testing")
     def test_graph_selection(self, page_with_base_url):
         """Test graph selection functionality."""
         home_page = HomePage(page_with_base_url)
@@ -112,7 +112,7 @@ class TestChatFunctionality:
             assert "QueryWeaver" in page.title() or page.url.endswith("/")
             # This is the expected behavior for unauthenticated users
 
-    @pytest.mark.skip(reason="Requires streaming response setup")
+    @pytest.mark.skip(reason="Requires real Google/GitHub OAuth login and streaming implementation - not suitable for automated E2E testing")
     def test_streaming_responses(self, page_with_base_url):
         """Test streaming response functionality."""
         home_page = HomePage(page_with_base_url)

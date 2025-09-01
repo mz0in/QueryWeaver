@@ -28,6 +28,7 @@ def fastapi_app():
         'GOOGLE_CLIENT_SECRET': 'test-google-client-secret',
         'GITHUB_CLIENT_ID': 'test-github-client-id',
         'GITHUB_CLIENT_SECRET': 'test-github-client-secret',
+        'ENABLE_TEST_AUTH': 'true',  # Enable test auth bypass for E2E tests
     }
     for var, default in env_defaults.items():
         if not os.getenv(var):
@@ -96,15 +97,16 @@ def page_with_base_url(page, app_url):
 
 @pytest.fixture
 def authenticated_page(page, app_url):
-    """Provide a page with mock authentication for testing authenticated features."""
-    # Set a mock authentication cookie
+    """Provide a page with test authentication enabled."""
+    # Set test authentication cookie that the server will recognize
+    # when ENABLE_TEST_AUTH=true
     page.context.add_cookies([{
-        'name': 'api_token',
-        'value': 'test-api-token-for-e2e-tests',
+        'name': 'test_auth_token',
+        'value': 'test-user-token',
         'domain': 'localhost',
         'path': '/',
-        'httpOnly': True,
-        'secure': False,
+        'httpOnly': False,  # Allow JS access for testing
+        'secure': False,    # HTTP in test environment
         'sameSite': 'Lax'
     }])
     

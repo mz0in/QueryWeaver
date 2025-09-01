@@ -263,6 +263,25 @@ async def validate_user(request: Request) -> Tuple[Optional[Dict[str, Any]], boo
     Includes refresh handling for Google.
     """
     try:
+        # Development/Test Auth Bypass
+        # Check for test mode environment variable
+        test_mode = os.getenv("ENABLE_TEST_AUTH", "false").lower() == "true"
+        if test_mode:
+            # Check for test auth header or cookie
+            test_token = request.headers.get("X-Test-Auth-Token")
+            if not test_token:
+                # Also check cookies for test token
+                test_token = request.cookies.get("test_auth_token")
+            
+            if test_token == "test-user-token":
+                # Return mock user data for testing
+                return {
+                    "email": "test@example.com",
+                    "name": "Test User",
+                    "picture": "https://example.com/test-avatar.jpg"
+                }, True
+        
+        # Normal authentication flow
         api_token = get_token(request)
 
         if api_token:
