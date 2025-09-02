@@ -46,6 +46,7 @@
     transition: margin-left 220ms ease;
   }
 }
+
 .message-container {
   display: flex;
   flex-direction: row;
@@ -146,7 +147,9 @@
 }
 
 /* Styles for formatted text blocks */
-.sql-line, .array-line, .plain-line {
+.sql-line,
+.array-line,
+.plain-line {
   word-wrap: break-word;
   overflow-wrap: break-word;
   white-space: pre-wrap;
@@ -203,6 +206,19 @@
   border: none;
   font-size: 18px !important;
   font-weight: 500 !important;
+  resize: none;
+  min-height: 24px;
+  height: 24px;
+  max-height: calc(24px * 5);
+  overflow-y: auto;
+  line-height: 24px;
+  font-family: inherit;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+#message-input::-webkit-scrollbar {
+  display: none;
 }
 
 #message-input:focus {
