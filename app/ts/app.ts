@@ -86,8 +86,8 @@ function setupEventListeners() {
 
     if (
       !selected ||
-      selected === "Select database" ||
-      selected === "No databases"
+      selected === "Select Database" ||
+      selected === "No database"
     )
       return alert("Please select a database to refresh");
 
