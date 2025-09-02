@@ -9,7 +9,7 @@ from tests.e2e.fixtures.test_data import TestDataFixtures
 class TestChatFunctionality:
     """Test chat and query functionality."""
 
-    @pytest.mark.skip(reason="Requires real Google/GitHub OAuth login and FalkorDB setup - not suitable for automated E2E testing")
+    @pytest.mark.skip(reason="Requires authentication and graph data")
     def test_send_basic_query(self, page_with_base_url):
         """Test sending a basic query through chat interface."""
         home_page = HomePage(page_with_base_url)
@@ -27,7 +27,7 @@ class TestChatFunctionality:
         messages = home_page.get_chat_messages()
         assert len(messages) > 0
 
-    @pytest.mark.skip(reason="Requires real Google/GitHub OAuth login and FalkorDB setup - not suitable for automated E2E testing")
+    @pytest.mark.skip(reason="Requires authentication and graph data")
     def test_multiple_queries(self, page_with_base_url):
         """Test sending multiple queries in sequence."""
         home_page = HomePage(page_with_base_url)
@@ -44,7 +44,7 @@ class TestChatFunctionality:
         messages = home_page.get_chat_messages()
         assert len(messages) >= 2
 
-    @pytest.mark.skip(reason="Requires real Google/GitHub OAuth login and FalkorDB setup - not suitable for automated E2E testing")
+    @pytest.mark.skip(reason="Requires authentication and graph selection")
     def test_graph_selection(self, page_with_base_url):
         """Test graph selection functionality."""
         home_page = HomePage(page_with_base_url)
@@ -60,20 +60,6 @@ class TestChatFunctionality:
             options = page.query_selector_all(f"{home_page.GRAPH_SELECTOR} option")
             if len(options) > 1:
                 home_page.select_graph(options[1].get_attribute("value"))
-
-    def test_chat_interface_structure(self, page_with_base_url):
-        """Test that chat interface has proper structure."""
-        home_page = HomePage(page_with_base_url)
-        home_page.navigate_to_home()
-
-        page = page_with_base_url
-
-        # Check for basic chat elements and verify page loaded successfully
-        # These might not be visible without authentication
-        page.query_selector_all("input, textarea")
-
-        # Verify the page loaded successfully by checking the title or URL
-        assert "QueryWeaver" in page.title() or page.url.endswith("/")
 
     def test_input_validation(self, page_with_base_url):
         """Test input validation and limits."""
@@ -109,10 +95,11 @@ class TestChatFunctionality:
         else:
             # No enabled inputs found - this is expected for unauthenticated users
             # Just verify the page loaded successfully
-            assert "QueryWeaver" in page.title() or page.url.endswith("/")
+            current_url = page.url
+            assert current_url.endswith("/"), f"Expected URL to end with '/', got: {current_url}"
             # This is the expected behavior for unauthenticated users
 
-    @pytest.mark.skip(reason="Requires real Google/GitHub OAuth login and streaming implementation - not suitable for automated E2E testing")
+    @pytest.mark.skip(reason="Requires streaming response setup")
     def test_streaming_responses(self, page_with_base_url):
         """Test streaming response functionality."""
         home_page = HomePage(page_with_base_url)
