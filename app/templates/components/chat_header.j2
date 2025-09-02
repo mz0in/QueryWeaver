@@ -3,10 +3,15 @@
     <img src="/static/icons/queryweaver.webp" alt="Chat Logo" class="logo">
     <h1>Natural Language to SQL Generator</h1>
     <div class="button-container">
-        <!-- Custom dropdown to show per-item delete action on hover -->
+        <button class="action-button" id="graph-select-refresh">
+            <svg width="800px" height="800px" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path fill="none" stroke="currentColor" stroke-width="2"
+                    d="M20,8 C18.5974037,5.04031171 15.536972,3 12,3 C7.02943725,3 3,7.02943725 3,12 C3,16.9705627 7.02943725,21 12,21 L12,21 C16.9705627,21 21,16.9705627 21,12 M21,3 L21,9 L15,9" />
+            </svg>
+        </button>
         <div id="graph-custom-dropdown" class="graph-custom-dropdown">
-            <div id="graph-selected" class="graph-selected dropdown-selected" title="Select Database">
-                <span class="dropdown-text">Select Database</span>
+            <div id="graph-selected" class="graph-selected dropdown-selected" title="No database">
+                <span class="dropdown-text">No database</span>
                 <span class="dropdown-arrow">▼</span>
             </div>
             <div id="graph-options" class="graph-options dropdown-options" aria-hidden="true"></div>
@@ -14,29 +19,12 @@
 
         <!-- styles for the graph dropdown moved to app/public/css/menu.css -->
         <div class="vertical-separator"></div>
-        <input title="Upload Schema" id="schema-upload" type="file" accept=".json" style="display: none;" tabindex="-1" disabled/>
+        <input title="Upload Schema" id="schema-upload" type="file" accept=".json" style="display: none;" tabindex="-1"
+            disabled />
         <label for="schema-upload" id="custom-file-upload">
             Upload Schema
         </label>
         <div class="vertical-separator"></div>
-        <div class="dropdown-container">
-            <div class="custom-dropdown" id="database-type-dropdown">
-                <div class="dropdown-selected" title="Select Database Type">
-                    <span class="dropdown-text">Connect Database</span>
-                    <span class="dropdown-arrow">▼</span>
-                </div>
-                <div class="dropdown-options" id="database-dropdown-options">
-                    <div class="dropdown-option" data-value="postgresql">
-                        <img src="/static/icons/postgresql.svg" alt="PostgreSQL" class="db-icon">
-                        <span>PostgreSQL</span>
-                    </div>
-                    <div class="dropdown-option" data-value="mysql">
-                        <img src="/static/icons/mysql.svg" alt="MySQL" class="db-icon">
-                        <span>MySQL</span>
-                    </div>
-                </div>
-                <input type="hidden" id="database-type-select" name="database-type" value="">
-            </div>
-        </div>
+        <button class="connect-database-btn header-button">Connect Database</button>
     </div>
 </div>

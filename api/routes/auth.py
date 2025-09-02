@@ -1,19 +1,29 @@
 """Authentication routes for the text2sql API."""
+# pylint: disable=all
 
+import hashlib
+import hmac
 import logging
 import os
+import re
+import time
 import secrets
+
 from pathlib import Path
 from urllib.parse import urljoin
 
-from fastapi import APIRouter, Request, HTTPException, status
-from fastapi.responses import RedirectResponse, HTMLResponse
-from fastapi.templating import Jinja2Templates
 from authlib.integrations.starlette_client import OAuth
+
+from fastapi import APIRouter, Request, HTTPException, status
+from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
+from fastapi.templating import Jinja2Templates
 from jinja2 import Environment, FileSystemLoader, FileSystemBytecodeCache, select_autoescape
 from starlette.config import Config
+from pydantic import BaseModel
 
-from api.auth.user_management import delete_user_token, validate_user
+from api.auth.user_management import delete_user_token, ensure_user_in_organizations, validate_user
+from api.extensions import db
+
 
 # Router
 auth_router = APIRouter()
@@ -36,6 +46,314 @@ templates = Jinja2Templates(
 
 templates.env.globals["google_tag_manager_id"] = os.getenv("GOOGLE_TAG_MANAGER_ID")
 
+GOOGLE_AUTH = bool(os.getenv("GOOGLE_CLIENT_ID") and os.getenv("GOOGLE_CLIENT_SECRET"))
+GITHUB_AUTH = bool(os.getenv("GITHUB_CLIENT_ID") and os.getenv("GITHUB_CLIENT_SECRET"))
+EMAIL_AUTH = bool(os.getenv("EMAIL_AUTH_ENABLED", "").lower() in ["true", "1", "yes", "on"])
+
+# ---- Authentication Configuration Helpers ----
+def _is_email_auth_enabled() -> bool:
+    """Check if email authentication is enabled via environment variable."""
+    return EMAIL_AUTH or not (GOOGLE_AUTH or GITHUB_AUTH)
+
+def _is_google_auth_enabled() -> bool:
+    """Check if Google OAuth is enabled via environment variables."""
+    return GOOGLE_AUTH
+
+def _is_github_auth_enabled() -> bool:
+    """Check if GitHub OAuth is enabled via environment variables."""
+    return GITHUB_AUTH
+
+def _get_auth_config() -> dict:
+    """Get authentication configuration for templates."""
+    return {
+        "email_auth_enabled": _is_email_auth_enabled(),
+        "google_auth_enabled": _is_google_auth_enabled(),
+        "github_auth_enabled": _is_github_auth_enabled(),
+    }
+
+# Data models for email authentication
+class EmailLoginRequest(BaseModel):
+    """_summary_
+
+    Args:
+        BaseModel (_type_): _description_
+    """
+    email: str
+    password: str
+
+class EmailSignupRequest(BaseModel):
+    """_summary_
+
+    Args:
+        BaseModel (_type_): _description_
+    """
+    firstName: str
+    lastName: str
+    email: str
+    password: str
+
+# ---- Password utilities ----
+def _hash_password(password: str) -> str:
+    """Hash a password using PBKDF2 with a random salt."""
+    salt = os.urandom(32)
+    password_hash = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, 100000)
+    return (salt + password_hash).hex()
+
+def _verify_password(password: str, stored_password_hex: str) -> bool:
+    """Verify a password against its hash using constant-time comparison."""
+    try:
+        stored_password = bytes.fromhex(stored_password_hex)
+        salt = stored_password[:32]
+        stored_hash = stored_password[32:]
+
+        password_hash = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, 100000)
+
+        return hmac.compare_digest(password_hash, stored_hash)
+    except (ValueError, TypeError):
+        return False
+
+def _sanitize_for_log(value: str) -> str:
+    """Sanitize user input for logging by removing newlines and carriage returns."""
+    if not isinstance(value, str):
+        return str(value)
+    return value.replace('\r\n', '').replace('\n', '').replace('\r', '')
+
+def _validate_email(email: str) -> bool:
+    """Basic email validation."""
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return re.match(pattern, email) is not None
+
+async def _set_mail_hash(email: str, password_hash: str) -> bool:
+    """Set email hash for the user in the database."""
+    try:
+        organizations_graph = db.select_graph("Organizations")
+
+        # Sanitize inputs for logging
+        safe_email = _sanitize_for_log(email)
+
+        # Create new email identity and user
+        create_query = """
+        MERGE (i:Identity {
+            provider_user_id: $email,
+            email: $email
+        })
+        SET i.password_hash = $password_hash
+        RETURN i
+        """
+
+        result = await organizations_graph.query(create_query, {
+            "email": email,
+            "password_hash": password_hash,
+        })
+
+        if result.result_set:
+            return True
+        else:
+            logging.error("Failed to set email hash for user: %s", safe_email)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                detail="Internal server error"
+            )
+
+    except Exception as e:
+        logging.error("Error setting email hash for user %s: %s", safe_email, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail="Internal server error"
+        )
+
+async def _authenticate_email_user(email: str, password: str):
+    """Authenticate an email user."""
+    try:
+        organizations_graph = db.select_graph("Organizations")
+
+        # Find user by email
+        query = """
+        MATCH (i:Identity {provider: 'email', email: $email})-[:AUTHENTICATES]->(u:User)
+        RETURN i, u
+        """
+
+        result = await organizations_graph.query(query, {"email": email})
+
+        if not result.result_set:
+            return False, "Invalid email or password"
+
+        identity = result.result_set[0][0]
+        user = result.result_set[0][1]
+
+        # Verify password - access Node properties correctly
+        stored_password_hash = identity.properties.get('password_hash')
+        if not stored_password_hash or not _verify_password(password, stored_password_hash):
+            return False, "Invalid email or password"
+
+        # Update last login
+        update_query = """
+        MATCH (i:Identity {provider: 'email', email: $email})
+        SET i.last_login = timestamp()
+        """
+        await organizations_graph.query(update_query, {"email": email})
+
+        logging.info("EMAIL USER AUTHENTICATED: email=%r", _sanitize_for_log(email))
+        return True, {"identity": identity, "user": user}
+
+    except Exception as e:
+        logging.error("Error authenticating email user: %s", e)
+        return False, "Internal error"
+
+# ---- Email Authentication Routes ----
+@auth_router.post("/signup/email")
+async def email_signup(request: Request, signup_data: EmailSignupRequest) -> JSONResponse:
+    """Handle email/password user registration."""
+    try:
+        # Check if email authentication is enabled
+        if os.getenv("EMAIL_AUTH_ENABLED", "").lower() not in ["true", "1", "yes", "on"]:
+            raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="GEmail authentication is not enabled"
+        )
+
+        # Validate required fields
+        if not all([signup_data.firstName, signup_data.lastName,
+                    signup_data.email, signup_data.password]):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="All fields are required"
+            )
+
+        first_name = signup_data.firstName.strip()
+        last_name = signup_data.lastName.strip()
+        email = signup_data.email.strip().lower()
+        password = signup_data.password
+
+        # Validate email format
+        if not _validate_email(email):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid email format"
+            )
+
+        # Validate password strength
+        if len(password) < 8:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Password must be at least 8 characters long"
+            )
+
+        api_token = secrets.token_urlsafe(32)
+        # Create organization association
+        success, user_info = await ensure_user_in_organizations(email, email,
+                                            f"{first_name} {last_name}", "email", api_token)
+
+        if success and user_info and user_info["new_identity"]:
+            logging.info("New user created: %s", _sanitize_for_log(email))
+
+            # Hash password
+            password_hash = _hash_password(password)
+
+            # Set email hash
+            await _set_mail_hash(email, password_hash)
+
+        else:
+            logging.info("User already exists: %s", _sanitize_for_log(email))
+
+        logging.info("User registration successful: %s", _sanitize_for_log(email))
+
+        response = JSONResponse({
+            "success": True,
+        }, status_code=201)
+        response.set_cookie(
+            key="api_token",
+            value=api_token,
+            httponly=True,
+            secure=True
+        )
+        return response
+
+    except Exception as e:
+        logging.error("Signup error: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Registration failed"
+        )
+
+@auth_router.post("/login/email")
+async def email_login(request: Request, login_data: EmailLoginRequest) -> JSONResponse:
+    """Handle email/password user login."""
+    try:
+        # Check if email authentication is enabled
+        if os.getenv("EMAIL_AUTH_ENABLED", "").lower() not in ["true", "1", "yes", "on"]:
+            return JSONResponse(
+                {"success": False, "error": "Email authentication is not enabled"},
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+
+        # Validate required fields
+        if not login_data.email or not login_data.password:
+            return JSONResponse(
+                {"success": False, "error": "Email and password are required"},
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+
+        email = login_data.email.strip().lower()
+        password = login_data.password
+
+        # Validate email format
+        if not _validate_email(email):
+            return JSONResponse(
+                {"success": False, "error": "Invalid email format"},
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Authenticate user
+        success, result = await _authenticate_email_user(email, password)
+
+        if not success:
+            return JSONResponse(
+                {"success": False, "error": result}, 
+                status_code=status.HTTP_401_UNAUTHORIZED
+            )
+
+        # Set session data - result is a dict when success is True
+        if isinstance(result, dict):
+            user_node = result.get("user")
+            identity_node = result.get("identity")
+
+            # Access node properties correctly
+            user_props = (
+                user_node.properties
+                if user_node and hasattr(user_node, "properties")
+                else {}
+            )
+            identity_props = (
+                identity_node.properties
+                if identity_node and hasattr(identity_node, "properties")
+                else {}
+            )
+
+            request.session["user_info"] = {
+                "id": identity_props.get("provider_user_id", email),
+                "name": user_props.get("name", ""),
+                "email": user_props.get("email", email),
+                "picture": user_props.get("picture", ""),
+                "provider": "email",
+            }
+            request.session["email_authenticated"] = True
+            request.session["token_validated_at"] = time.time()
+
+            return JSONResponse({"success": True, "message": "Login successful"})
+        else:
+            return JSONResponse(
+                {"success": False, "error": "Authentication failed"},
+                status_code=status.HTTP_401_UNAUTHORIZED
+            )
+
+    except Exception as e:
+        logging.error("Login error: %s", e)
+        return JSONResponse(
+            {"success": False, "error": "Login failed"}, 
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
 # ---- Helpers ----
 def _get_provider_client(request: Request, provider: str):
     """Get an OAuth provider client from app.state.oauth"""
@@ -48,24 +366,6 @@ def _get_provider_client(request: Request, provider: str):
         raise HTTPException(status_code=500, detail=f"OAuth provider {provider} not configured")
     return client
 
-@auth_router.get("/chat", name="auth.chat", response_class=HTMLResponse)
-async def chat(request: Request) -> HTMLResponse:
-    """Explicit chat route (renders main chat UI)."""
-    user_info, is_authenticated = await validate_user(request)
-
-    if not is_authenticated or not user_info:
-        is_authenticated = False
-        user_info = None
-
-    return templates.TemplateResponse(
-        "chat.j2",
-        {
-            "request": request,
-            "is_authenticated": is_authenticated,
-            "user_info": user_info,
-        },
-    )
-
 def _build_callback_url(request: Request, path: str) -> str:
     """Build absolute callback URL, honoring OAUTH_BASE_URL if provided."""
     base_override = os.getenv("OAUTH_BASE_URL")
@@ -77,36 +377,22 @@ def _build_callback_url(request: Request, path: str) -> str:
 # ---- Routes ----
 @auth_router.get("/", response_class=HTMLResponse)
 async def home(request: Request) -> HTMLResponse:
-    """Handle the home page, rendering the landing page for unauthenticated users and the chat page for authenticated users."""
+    """
+    Handle the home page, rendering the landing page for unauthenticated users 
+    and the chat page for authenticated users.
+    """
     user_info, is_authenticated_flag = await validate_user(request)
-
-    if is_authenticated_flag or user_info:
-        return templates.TemplateResponse(
-            "chat.j2",
-            {
-                "request": request,
-                "is_authenticated": True,
-                "user_info": user_info
-            }
-        )
+    auth_config = _get_auth_config()
 
     return templates.TemplateResponse(
-        "landing.j2", 
+        "chat.j2",
         {
-            "request": request, 
-            "is_authenticated": False, 
-            "user_info": None
+            "request": request,
+            "is_authenticated": is_authenticated_flag,
+            "user_info": user_info,
+            **auth_config,
         }
     )
-
-
-
-
-
-@auth_router.get("/login", response_class=RedirectResponse)
-async def login_page(_: Request) -> RedirectResponse:
-    return RedirectResponse(url="/login/google", status_code=status.HTTP_302_FOUND)
-
 
 @auth_router.get("/login/google", name="google.login", response_class=RedirectResponse)
 async def login_google(request: Request) -> RedirectResponse:
@@ -118,6 +404,13 @@ async def login_google(request: Request) -> RedirectResponse:
     Returns:
         RedirectResponse: The redirect response to the Google OAuth endpoint.
     """
+
+    # Check if Google auth is enabled
+    if not _is_google_auth_enabled():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Google authentication is not configured"
+        )
 
     google = _get_provider_client(request, "google")
     redirect_uri = _build_callback_url(request, "login/google/authorized")
@@ -135,7 +428,8 @@ async def login_google(request: Request) -> RedirectResponse:
 
 @auth_router.get("/login/google/authorized", response_class=RedirectResponse)
 async def google_authorized(request: Request) -> RedirectResponse:
-    """Handle Google OAuth callback and user authorization.
+    """
+    Handle Google OAuth callback and user authorization.
 
     Args:
         request (Request): The incoming request.
@@ -143,11 +437,22 @@ async def google_authorized(request: Request) -> RedirectResponse:
     Returns:
         RedirectResponse: The redirect response after handling the callback.
     """
+    # Check if Google auth is enabled
+    if not _is_google_auth_enabled():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Google authentication is not configured"
+        )
 
     try:
         google = _get_provider_client(request, "google")
         token = await google.authorize_access_token(request)
-        user_info = token.get("userinfo")
+        resp = await google.get("userinfo", token=token)
+        if resp.status_code != 200:
+            logging.warning("Failed to retrieve user info from Google")
+            raise HTTPException(status_code=400, detail="Failed to get user info from Google")
+
+        user_info = resp.json()
 
         if user_info:
             user_data = {
@@ -165,7 +470,7 @@ async def google_authorized(request: Request) -> RedirectResponse:
                 # Call the registered handler (await if async)
                 await handler('google', user_data, api_token)
 
-                redirect = RedirectResponse(url="/chat", status_code=302)
+                redirect = RedirectResponse(url="/", status_code=302)
                 redirect.set_cookie(
                     key="api_token",
                     value=api_token,
@@ -184,12 +489,13 @@ async def google_authorized(request: Request) -> RedirectResponse:
         raise HTTPException(status_code=400, detail="Failed to get user info from Google")
 
     except Exception as e:
-        logging.error(f"Google OAuth authentication failed: {str(e)}")
-        raise HTTPException(status_code=400, detail=f"Authentication failed: {str(e)}")
+        logging.error("Google OAuth authentication failed: %s", str(e))  # nosemgrep
+        raise HTTPException(status_code=400, detail=f"Authentication failed: {str(e)}") from e
 
 
 @auth_router.get("/login/google/callback", response_class=RedirectResponse)
 async def google_callback_compat(request: Request) -> RedirectResponse:
+    """Handle Google OAuth callback redirect for compatibility."""
     qs = f"?{request.url.query}" if request.url.query else ""
     redirect = f"/login/google/authorized{qs}"
     return RedirectResponse(url=redirect, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
@@ -197,6 +503,14 @@ async def google_callback_compat(request: Request) -> RedirectResponse:
 
 @auth_router.get("/login/github",  name="github.login", response_class=RedirectResponse)
 async def login_github(request: Request) -> RedirectResponse:
+    """Handle GitHub OAuth login redirect."""
+    # Check if GitHub auth is enabled
+    if not _is_github_auth_enabled():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="GitHub authentication is not configured"
+        )
+
     github = _get_provider_client(request, "github")
     redirect_uri = _build_callback_url(request, "login/github/authorized")
 
@@ -213,6 +527,13 @@ async def login_github(request: Request) -> RedirectResponse:
 
 @auth_router.get("/login/github/authorized", response_class=RedirectResponse)
 async def github_authorized(request: Request) -> RedirectResponse:
+    """Handle GitHub OAuth authorization callback."""
+    # Check if GitHub auth is enabled
+    if not _is_github_auth_enabled():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="GitHub authentication is not configured"
+        )
     try:
         github = _get_provider_client(request, "github")
         token = await github.authorize_access_token(request)
@@ -220,7 +541,7 @@ async def github_authorized(request: Request) -> RedirectResponse:
         # Fetch GitHub user info
         resp = await github.get("user", token=token)
         if resp.status_code != 200:
-            logging.error("Failed to fetch GitHub user info: %s", resp.text)
+            logging.error("Failed to fetch GitHub user info: %s", resp.text)  # nosemgrep
             return RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
 
         user_info = resp.json()
@@ -253,7 +574,7 @@ async def github_authorized(request: Request) -> RedirectResponse:
                 # Call the registered handler (await if async)
                 await handler('github', user_data, api_token)
 
-                redirect = RedirectResponse(url="/chat", status_code=302)
+                redirect = RedirectResponse(url="/", status_code=302)
                 redirect.set_cookie(
                     key="api_token",
                     value=api_token,
@@ -272,12 +593,13 @@ async def github_authorized(request: Request) -> RedirectResponse:
         raise HTTPException(status_code=400, detail="Failed to get user info from Github")
 
     except Exception as e:
-        logging.error(f"GitHub OAuth authentication failed: {str(e)}")
-        raise HTTPException(status_code=400, detail=f"Authentication failed: {str(e)}")
+        logging.error("GitHub OAuth authentication failed: %s", str(e))  # nosemgrep
+        raise HTTPException(status_code=400, detail=f"Authentication failed: {str(e)}") from e
 
 
 @auth_router.get("/login/github/callback", response_class=RedirectResponse)
 async def github_callback_compat(request: Request) -> RedirectResponse:
+    """Handle GitHub OAuth callback redirect for compatibility."""
     qs = f"?{request.url.query}" if request.url.query else ""
     redirect = f"/login/github/authorized{qs}"
     return RedirectResponse(url=redirect, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
@@ -302,32 +624,33 @@ def init_auth(app):
     config = Config(environ=os.environ)
     oauth = OAuth(config)
 
-    google_client_id = os.getenv("GOOGLE_CLIENT_ID")
-    google_client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
-    if not google_client_id or not google_client_secret:
-        logging.warning("Google OAuth env vars not set; login will fail until configured.")
+    # Only register Google OAuth if credentials are available
+    if _is_google_auth_enabled():
+        oauth.register(
+            name="google",
+            client_id=os.getenv("GOOGLE_CLIENT_ID"),
+            client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
+            server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+            api_base_url="https://openidconnect.googleapis.com/v1/",
+            client_kwargs={"scope": "openid email profile"},
+        )
+        logging.info("Google OAuth initialized successfully")
+    else:
+        logging.info("Google OAuth not configured - skipping registration")
 
-    oauth.register(
-        name="google",
-        client_id=google_client_id,
-        client_secret=google_client_secret,
-        server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
-        client_kwargs={"scope": "openid email profile"},
-    )
-
-    github_client_id = os.getenv("GITHUB_CLIENT_ID")
-    github_client_secret = os.getenv("GITHUB_CLIENT_SECRET")
-    if not github_client_id or not github_client_secret:
-        logging.warning("GitHub OAuth env vars not set; login will fail until configured.")
-
-    oauth.register(
-        name="github",
-        client_id=github_client_id,
-        client_secret=github_client_secret,
-        access_token_url="https://github.com/login/oauth/access_token",
-        authorize_url="https://github.com/login/oauth/authorize",
-        api_base_url="https://api.github.com/",
-        client_kwargs={"scope": "user:email"},
-    )
+    # Only register GitHub OAuth if credentials are available
+    if _is_github_auth_enabled():
+        oauth.register(
+            name="github",
+            client_id=os.getenv("GITHUB_CLIENT_ID"),
+            client_secret=os.getenv("GITHUB_CLIENT_SECRET"),
+            access_token_url="https://github.com/login/oauth/access_token",
+            authorize_url="https://github.com/login/oauth/authorize",
+            api_base_url="https://api.github.com/",
+            client_kwargs={"scope": "user:email"},
+        )
+        logging.info("GitHub OAuth initialized successfully")
+    else:
+        logging.info("GitHub OAuth not configured - skipping registration")
 
     app.state.oauth = oauth

@@ -70,6 +70,7 @@ class RelevancyAgent(BaseAgent):
     # pylint: disable=too-few-public-methods
     """Agent for determining relevancy of queries to database schema."""
 
+
     async def get_answer(self, user_question: str, database_desc: dict) -> dict:
         """Get relevancy assessment for user question against database description."""
         self.messages.append(
