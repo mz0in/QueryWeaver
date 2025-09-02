@@ -91,7 +91,7 @@ async function handleEmailLogin(e: Event) {
     submitBtn.textContent = 'Signing in...';
 
     try {
-        const response = await fetch('/email-login', {
+        const response = await fetch('/login/email', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -156,7 +156,7 @@ async function handleEmailSignup(e: Event) {
     submitBtn.textContent = 'Creating account...';
 
     try {
-        const response = await fetch('/email-signup', {
+        const response = await fetch('/signup/email', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

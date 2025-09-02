@@ -15,13 +15,16 @@ from api.extensions import db
 SECRET_KEY = os.getenv("FASTAPI_SECRET_KEY")
 if not SECRET_KEY:
     SECRET_KEY = secrets.token_hex(32)
-    logging.warning("FASTAPI_SECRET_KEY not set, using generated key. Set this in production!")
+    logging.warning(
+        "FASTAPI_SECRET_KEY not set, using generated key. Set this in production!"
+    )
 
 
 class IdentityInfo(BaseModel):
     identity: Dict[str, Any]
     user: Dict[str, Any]
     new_identity: bool
+
 
 async def _get_user_info(api_token: str) -> Optional[Dict[str, Any]]:
     """
@@ -36,9 +39,12 @@ async def _get_user_info(api_token: str) -> Optional[Dict[str, Any]]:
         # Select the Organizations graph
         organizations_graph = db.select_graph("Organizations")
 
-        result = await organizations_graph.query(query, {
-            "api_token": api_token,
-        })
+        result = await organizations_graph.query(
+            query,
+            {
+                "api_token": api_token,
+            },
+        )
 
         if result.result_set:
             single_result = result.result_set[0]
@@ -48,7 +54,7 @@ async def _get_user_info(api_token: str) -> Optional[Dict[str, Any]]:
                 return {
                     "email": single_result[0],
                     "name": single_result[1],
-                    "picture": single_result[2]
+                    "picture": single_result[2],
                 }
             # Delete invalid/expired token from DB for cleanup
             await delete_user_token(api_token)
@@ -71,9 +77,12 @@ async def delete_user_token(api_token: str):
         # Select the Organizations graph
         organizations_graph = db.select_graph("Organizations")
 
-        await organizations_graph.query(query, {
-            "api_token": api_token,
-        })
+        await organizations_graph.query(
+            query,
+            {
+                "api_token": api_token,
+            },
+        )
 
     except Exception as e:  # pylint: disable=broad-exception-caught
         logging.error("Error deleting user token: %s", e)
@@ -87,7 +96,6 @@ async def ensure_user_in_organizations(  # pylint: disable=too-many-arguments, d
     api_token: str,
     picture: str | None = None,
 ) -> tuple[bool, Optional[IdentityInfo]]:
-
     """
     Check if identity exists in Organizations graph, create if not.
     Creates separate Identity and User nodes with proper relationships.
@@ -106,9 +114,14 @@ async def ensure_user_in_organizations(  # pylint: disable=too-many-arguments, d
 
         merge_query = _build_user_merge_query()
         query_params = _build_query_params(
-            provider, provider_user_id, email,
-            name=name, picture=picture, first_name=first_name,
-            last_name=last_name, api_token=api_token
+            provider,
+            provider_user_id,
+            email,
+            name=name,
+            picture=picture,
+            first_name=first_name,
+            last_name=last_name,
+            api_token=api_token,
         )
 
         result = await organizations_graph.query(merge_query, query_params)
@@ -118,7 +131,9 @@ async def ensure_user_in_organizations(  # pylint: disable=too-many-arguments, d
         logging.error("Error managing user in Organizations graph: %s", e)
         return False, None
     except (ConnectionError, TimeoutError) as e:
-        logging.error("Database connection error managing user in Organizations graph: %s", e)
+        logging.error(
+            "Database connection error managing user in Organizations graph: %s", e
+        )
         return False, None
     except Exception as e:  # pylint: disable=broad-exception-caught
         logging.error("Unexpected error managing user in Organizations graph: %s", e)
@@ -129,8 +144,11 @@ async def update_identity_last_login(provider, provider_user_id):
     """Update the last login timestamp for an existing identity"""
     # Input validation
     if not provider or not provider_user_id:
-        logging.error("Missing required parameters: provider=%s, provider_user_id=%s",
-                     provider, provider_user_id)
+        logging.error(
+            "Missing required parameters: provider=%s, provider_user_id=%s",
+            provider,
+            provider_user_id,
+        )
         return
 
     # Validate provider is in allowed list
@@ -146,21 +164,31 @@ async def update_identity_last_login(provider, provider_user_id):
         SET identity.last_login = timestamp()
         RETURN identity
         """
-        await organizations_graph.query(update_query, {
-            "provider": provider,
-            "provider_user_id": provider_user_id
-        })
-        logging.info("Updated last login for identity: provider=%s, provider_user_id=%s",
-                    provider, provider_user_id)
+        await organizations_graph.query(
+            update_query, {"provider": provider, "provider_user_id": provider_user_id}
+        )
+        logging.info(
+            "Updated last login for identity: provider=%s, provider_user_id=%s",
+            provider,
+            provider_user_id,
+        )
     except (AttributeError, ValueError, KeyError) as e:
-        logging.error("Error updating last login for identity %s/%s: %s",
-                     provider, provider_user_id, e)
+        logging.error(
+            "Error updating last login for identity %s/%s: %s",
+            provider,
+            provider_user_id,
+            e,
+        )
     except Exception as e:  # pylint: disable=broad-exception-caught
-        logging.error("Unexpected error updating last login for identity %s/%s: %s",
-                     provider, provider_user_id, e)
+        logging.error(
+            "Unexpected error updating last login for identity %s/%s: %s",
+            provider,
+            provider_user_id,
+            e,
+        )
 
 
-def get_token(request: Request)-> Optional[str]:
+def get_token(request: Request) -> Optional[str]:
     """
     Extract the API token from the request.
     """
@@ -176,9 +204,8 @@ def get_token(request: Request)-> Optional[str]:
         return api_token
 
     # Check Authorization header
-    auth_header = (
-        request.headers.get("authorization")
-        or request.headers.get("Authorization")
+    auth_header = request.headers.get("authorization") or request.headers.get(
+        "Authorization"
     )
     if auth_header:
         try:
@@ -189,6 +216,7 @@ def get_token(request: Request)-> Optional[str]:
             pass
 
     return None
+
 
 async def validate_user(request: Request) -> Tuple[Optional[Dict[str, Any]], bool]:
     """
@@ -211,6 +239,7 @@ async def validate_user(request: Request) -> Tuple[Optional[Dict[str, Any]], boo
         logging.error("Unexpected error in validate_user: %s", e)
         return None, False
 
+
 def token_required(func):
     """Decorator to protect FastAPI routes with token authentication.
     Automatically refreshes tokens if expired.
@@ -225,7 +254,7 @@ def token_required(func):
             if not is_authenticated:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Unauthorized - Please log in or provide a valid API token"
+                    detail="Unauthorized - Please log in or provide a valid API token",
                 )
 
             # Attach user_id to request.state (like FASTAPI's g.user_id)
@@ -237,7 +266,7 @@ def token_required(func):
             if not request.state.user_id:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Unauthorized - Invalid user"
+                    detail="Unauthorized - Invalid user",
                 )
 
             return await func(request, *args, **kwargs)
@@ -248,7 +277,7 @@ def token_required(func):
             logging.error("Unexpected error in token_required: %s", e)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Unauthorized - Authentication error"
+                detail="Unauthorized - Authentication error",
             ) from e
 
     return wrapper
@@ -257,8 +286,12 @@ def token_required(func):
 def _validate_user_input(provider_user_id: str, email: str, provider: str):
     """Validate input parameters for user creation/update."""
     if not provider_user_id or not email or not provider:
-        logging.error("Missing required parameters: provider_user_id=%s, email=%s, provider=%s",
-                     provider_user_id, email, provider)
+        logging.error(
+            "Missing required parameters: provider_user_id=%s, email=%s, provider=%s",
+            provider_user_id,
+            email,
+            provider,
+        )
         return False, None
 
     # Validate email format (basic check)
@@ -321,8 +354,7 @@ def _build_user_merge_query() -> str:
         RETURN
             identity,
             user,
-            identity.created_at = identity.last_login AS is_new_identity,
-            EXISTS((user)<-[:AUTHENTICATES]-(:Identity)) AS had_other_identities
+            identity.created_at = identity.last_login AS is_new_identity
         """
 
 
@@ -332,7 +364,7 @@ def _build_query_params(  # pylint: disable=too-many-arguments
     email: str,
     *,
     name: str,
-    picture: str,
+    picture: str | None = None,
     first_name: str,
     last_name: str,
     api_token: str
@@ -346,34 +378,42 @@ def _build_query_params(  # pylint: disable=too-many-arguments
         "picture": picture,
         "first_name": first_name,
         "last_name": last_name,
-        "api_token": api_token
+        "api_token": api_token,
     }
 
 
-def _process_user_result(result, provider: str, provider_user_id: str,
-                        email: str, name: str):
+def _process_user_result(
+    result, provider: str, provider_user_id: str, email: str, name: str
+):
     """Process the database result and return appropriate response."""
     if result.result_set:
         identity: dict[str, Any] = result.result_set[0][0]
         user: dict[str, Any] = result.result_set[0][1]
         is_new_identity: bool = result.result_set[0][2]
-        had_other_identities: bool = result.result_set[0][3]
 
-        # Determine the type of operation for logging
-        if is_new_identity and not had_other_identities:
-            # Brand new user (first identity)
-            logging.info("NEW USER CREATED: provider=%s, provider_user_id=%s, "
-                       "email=%s, name=%s", provider, provider_user_id, email, name)
-            return True, {"identity": identity, "user": user, "new_identity": is_new_identity}
-        if is_new_identity and had_other_identities:
+        if is_new_identity:
             # New identity for existing user (cross-provider linking)
-            logging.info("NEW IDENTITY LINKED TO EXISTING USER: provider=%s, "
-                       "provider_user_id=%s, email=%s, name=%s",
-                       provider, provider_user_id, email, name)
-            return True, {"identity": identity, "user": user, "new_identity": is_new_identity}
+            logging.info(
+                "NEW IDENTITY LINKED TO USER: provider=%s, "
+                "provider_user_id=%s, email=%s, name=%s",
+                provider,
+                provider_user_id,
+                email,
+                name,
+            )
+            return True, {
+                "identity": identity,
+                "user": user,
+                "new_identity": is_new_identity,
+            }
+
         # Existing identity login
         logging.info("Existing identity found: provider=%s, email=%s", provider, email)
-        return False, {"identity": identity, "user": user, "new_identity": is_new_identity}
+        return False, {
+            "identity": identity,
+            "user": user,
+            "new_identity": is_new_identity,
+        }
 
     logging.error("Failed to create/update identity and user: email=%s", email)
     return False, None

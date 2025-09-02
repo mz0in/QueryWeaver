@@ -122,64 +122,44 @@ def _validate_email(email: str) -> bool:
     pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     return re.match(pattern, email) is not None
 
-async def _create_email_user(first_name: str, last_name: str, email: str, password_hash: str):
-    """Create a new email user in the database."""
+async def _set_mail_hash(email: str, password_hash: str) -> bool:
+    """Set email hash for the user in the database."""
     try:
         organizations_graph = db.select_graph("Organizations")
 
         # Sanitize inputs for logging
         safe_email = _sanitize_for_log(email)
-        safe_first_name = _sanitize_for_log(first_name)
-        safe_last_name = _sanitize_for_log(last_name)
-        name = f"{safe_first_name} {safe_last_name}"
-
-        # Check if user already exists
-        check_query = """
-        MATCH (i:Identity {provider: 'email', email: $email})
-        RETURN i
-        """
-        result = await organizations_graph.query(check_query, {"email": email})
-
-        if result.result_set:
-            return False, "User already exists"
 
         # Create new email identity and user
         create_query = """
-        CREATE (i:Identity {
+        MERGE (i:Identity {
             provider_user_id: $email,
-            provider: 'email',
-            email: $email,
-            password_hash: $password_hash,
-            created_at: timestamp()
+            email: $email
         })
-        CREATE (u:User {
-            name: $name,
-            email: $email,
-            picture: '',
-            created_at: timestamp()
-        })
-        CREATE (i)-[:BELONGS_TO]->(u)
-        RETURN i, u
+        SET i.password_hash = $password_hash
+        RETURN i
         """
 
         result = await organizations_graph.query(create_query, {
             "email": email,
             "password_hash": password_hash,
-            "name": name
         })
 
         if result.result_set:
-            identity = result.result_set[0][0]
-            user = result.result_set[0][1]
-            logging.info("NEW EMAIL USER CREATED: email=%s, name=%s", safe_email, name)
-            return True, {"identity": identity, "user": user}
+            return True
         else:
-            logging.error("Failed to create email user: %s", safe_email)
-            return False, "Failed to create user"
+            logging.error("Failed to set email hash for user: %s", safe_email)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                detail="Internal server error"
+            )
 
     except Exception as e:
-        logging.error("Error creating email user: %s", e)
-        return False, "Internal error"
+        logging.error("Error setting email hash for user %s: %s", safe_email, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail="Internal server error"
+        )
 
 async def _authenticate_email_user(email: str, password: str):
     """Authenticate an email user."""
@@ -188,7 +168,7 @@ async def _authenticate_email_user(email: str, password: str):
 
         # Find user by email
         query = """
-        MATCH (i:Identity {provider: 'email', email: $email})-[:BELONGS_TO]->(u:User)
+        MATCH (i:Identity {provider: 'email', email: $email})-[:AUTHENTICATES]->(u:User)
         RETURN i, u
         """
 
@@ -220,8 +200,8 @@ async def _authenticate_email_user(email: str, password: str):
         return False, "Internal error"
 
 # ---- Email Authentication Routes ----
-@auth_router.post("/email-signup")
-async def email_signup(request: Request, signup_data: EmailSignupRequest) -> RedirectResponse:
+@auth_router.post("/signup/email")
+async def email_signup(request: Request, signup_data: EmailSignupRequest) -> JSONResponse:
     """Handle email/password user registration."""
     try:
         # Check if email authentication is enabled
@@ -258,38 +238,35 @@ async def email_signup(request: Request, signup_data: EmailSignupRequest) -> Red
                 detail="Password must be at least 8 characters long"
             )
 
-        # Hash password
-        password_hash = _hash_password(password)
-
-        # Create user
-        # success, result = await _create_email_user(first_name, last_name, email, password_hash)
-
-        # if not success:
-        #     raise HTTPException(
-        #         status_code=status.HTTP_400_BAD_REQUEST,
-        #         detail=result
-        #     )
-
         api_token = secrets.token_urlsafe(32)
         # Create organization association
-        success, user_info = await ensure_user_in_organizations(email, email, f"{first_name} {last_name}",
-                                           "email", api_token)
+        success, user_info = await ensure_user_in_organizations(email, email,
+                                            f"{first_name} {last_name}", "email", api_token)
 
-        if success and user_info and user_info.new_identity:
+        if success and user_info and user_info["new_identity"]:
             logging.info("New user created: %s", _sanitize_for_log(email))
+
+            # Hash password
+            password_hash = _hash_password(password)
+
+            # Set email hash
+            await _set_mail_hash(email, password_hash)
+
         else:
             logging.info("User already exists: %s", _sanitize_for_log(email))
 
         logging.info("User registration successful: %s", _sanitize_for_log(email))
 
-        redirect = RedirectResponse(url="/chat", status_code=302)
-        redirect.set_cookie(
+        response = JSONResponse({
+            "success": True,
+        }, status_code=201)
+        response.set_cookie(
             key="api_token",
             value=api_token,
             httponly=True,
             secure=True
         )
-        return redirect
+        return response
 
     except Exception as e:
         logging.error("Signup error: %s", e)
@@ -298,7 +275,7 @@ async def email_signup(request: Request, signup_data: EmailSignupRequest) -> Red
             detail="Registration failed"
         )
 
-@auth_router.post("/email-login")
+@auth_router.post("/login/email")
 async def email_login(request: Request, login_data: EmailLoginRequest) -> JSONResponse:
     """Handle email/password user login."""
     try:
