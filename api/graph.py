@@ -238,7 +238,7 @@ async def _find_connecting_tables(
     return result
 
 
-async def find(
+async def find( # pylint: disable=too-many-locals
     graph_id: str,
     queries_history: List[str],
     db_description: str = None
@@ -258,10 +258,7 @@ async def find(
     user_query = queries_history[-1]
     previous_queries = queries_history[:-1]
 
-    logging.info(
-        "Calling LLM to find relevant tables/columns for query: %s",
-        user_query
-    )
+    logging.info("Calling LLM to find relevant tables/columns for query")
 
     completion_result = completion(
         model=Config.COMPLETION_MODEL,
@@ -343,7 +340,7 @@ def _get_unique_tables(tables_list):
                 table_info[3] = [dict(od) for od in table_info[3]]
                 table_info[2] = "Foreign keys: " + table_info[2]
                 unique_tables[table_name] = table_info
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             print(f"Error: {table_info}, Exception: {e}")
 
     # Return the values (the unique table info lists)

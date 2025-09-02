@@ -14,6 +14,14 @@ from pymysql.cursors import DictCursor
 from api.loaders.base_loader import BaseLoader
 from api.loaders.graph_loader import load_to_graph
 
+
+class MySQLQueryError(Exception):
+    """Exception raised for MySQL query execution errors."""
+
+
+class MySQLConnectionError(Exception):
+    """Exception raised for MySQL connection errors."""
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 
@@ -22,13 +30,13 @@ class MySQLLoader(BaseLoader):
     Loader for MySQL databases that connects and extracts schema information.
     """
 
-    # DDL operations that modify database schema
+    # DDL operations that modify database schema  # pylint: disable=duplicate-code
     SCHEMA_MODIFYING_OPERATIONS = {
         'CREATE', 'ALTER', 'DROP', 'RENAME', 'TRUNCATE'
     }
 
     # More specific patterns for schema-affecting operations
-    SCHEMA_PATTERNS = [
+    SCHEMA_PATTERNS = [  # pylint: disable=duplicate-code
         r'^\s*CREATE\s+TABLE',
         r'^\s*CREATE\s+INDEX',
         r'^\s*CREATE\s+UNIQUE\s+INDEX',
@@ -91,10 +99,9 @@ class MySQLLoader(BaseLoader):
             return value.isoformat()
         if isinstance(value, decimal.Decimal):
             return float(value)
-        elif value is None:
+        if value is None:
             return None
-        else:
-            return value
+        return value
 
     @staticmethod
     def _parse_mysql_url(connection_url: str) -> Dict[str, str]:
@@ -197,8 +204,10 @@ class MySQLLoader(BaseLoader):
                          f"Found {len(entities)} tables.")
 
         except pymysql.MySQLError as e:
+            logging.error("MySQL connection error: %s", e)
             yield False, f"MySQL connection error: {str(e)}"
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logging.error("Error loading MySQL schema: %s", e)
             yield False, f"Error loading MySQL schema: {str(e)}"
 
     @staticmethod
@@ -454,10 +463,10 @@ class MySQLLoader(BaseLoader):
             Tuple of (success, message)
         """
         try:
-            logging.info("Schema modification detected. Refreshing graph schema for: %s", graph_id)
+            logging.info("Schema modification detected. Refreshing graph schema.")
 
             # Import here to avoid circular imports
-            from api.extensions import db
+            from api.extensions import db  # pylint: disable=import-error,import-outside-toplevel
 
             # Clear existing graph data
             # Drop current graph before reloading
@@ -480,10 +489,10 @@ class MySQLLoader(BaseLoader):
                 logging.info("Graph schema refreshed successfully.")
                 return True, message
 
-            logging.error("Schema refresh failed for graph %s: %s", graph_id, message)
+            logging.error("Schema refresh failed")
             return False, "Failed to reload schema"
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             # Log the error and return failure
             logging.error("Error refreshing graph schema: %s", str(e))
             error_msg = "Error refreshing graph schema"
@@ -509,7 +518,7 @@ class MySQLLoader(BaseLoader):
 
             # Connect to MySQL database
             conn = pymysql.connect(**conn_params)
-            cursor = conn.cursor(dictionary=True)
+            cursor = conn.cursor(DictCursor)
 
             # Execute the SQL query
             cursor.execute(sql_query)
@@ -553,18 +562,20 @@ class MySQLLoader(BaseLoader):
             conn.close()
 
             return result_list
-        
+
         except pymysql.MySQLError as e:
             # Rollback in case of error
             if 'conn' in locals():
                 conn.rollback()
                 cursor.close()
                 conn.close()
-            raise Exception(f"MySQL query execution error: {str(e)}") from e
+            logging.error("MySQL query execution error: %s", e)
+            raise MySQLQueryError(f"MySQL query execution error: {str(e)}") from e
         except Exception as e:
             # Rollback in case of error
             if 'conn' in locals():
                 conn.rollback()
                 cursor.close()
                 conn.close()
-            raise Exception(f"Error executing SQL query: {str(e)}") from e
+            logging.error("Error executing SQL query: %s", e)
+            raise MySQLQueryError(f"Error executing SQL query: {str(e)}") from e
