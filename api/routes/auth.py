@@ -52,7 +52,7 @@ EMAIL_AUTH = bool(os.getenv("EMAIL_AUTH_ENABLED", "").lower() in ["true", "1", "
 # ---- Authentication Configuration Helpers ----
 def _is_email_auth_enabled() -> bool:
     """Check if email authentication is enabled via environment variable."""
-    return EMAIL_AUTH
+    return EMAIL_AUTH or not (GOOGLE_AUTH or GITHUB_AUTH)
 
 def _is_google_auth_enabled() -> bool:
     """Check if Google OAuth is enabled via environment variables."""
