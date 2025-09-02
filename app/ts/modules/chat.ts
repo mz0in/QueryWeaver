@@ -184,7 +184,6 @@ function handleFollowupQuestions(step: any) {
 
 function handleQueryResult(step: any) {
     if (step.data) {
-        console.log(step.data);
         addMessage("Query Result", "query-final-result", false, null, step.data);
     } else {
         addMessage('No results found for the query.');
