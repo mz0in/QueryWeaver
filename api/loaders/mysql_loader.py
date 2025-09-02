@@ -30,13 +30,13 @@ class MySQLLoader(BaseLoader):
     Loader for MySQL databases that connects and extracts schema information.
     """
 
-    # DDL operations that modify database schema
+    # DDL operations that modify database schema  # pylint: disable=duplicate-code
     SCHEMA_MODIFYING_OPERATIONS = {
         'CREATE', 'ALTER', 'DROP', 'RENAME', 'TRUNCATE'
     }
 
     # More specific patterns for schema-affecting operations
-    SCHEMA_PATTERNS = [
+    SCHEMA_PATTERNS = [  # pylint: disable=duplicate-code
         r'^\s*CREATE\s+TABLE',
         r'^\s*CREATE\s+INDEX',
         r'^\s*CREATE\s+UNIQUE\s+INDEX',
