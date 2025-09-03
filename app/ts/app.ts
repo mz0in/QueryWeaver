@@ -26,7 +26,7 @@ import { initLeftToolbar } from "./modules/left_toolbar";
 import { setupTextareaAutoResize } from "./modules/input";
 
 async function loadAndShowGraph(selected: string | undefined) {
-  if (!selected) return;
+  if (!selected || selected === "Select Database") return;
   try {
     const resp = await fetch(`/graphs/${encodeURIComponent(selected)}/data`);
     if (!resp.ok) {
@@ -214,6 +214,19 @@ function setupEventListeners() {
 
   DOM.fileUpload?.addEventListener("change", handleFileUpload);
   window.addEventListener("resize", handleWindowResize);
+
+  // Expose toggleSidebar function globally for HTML template onclick handlers
+  (window as any).toggleSidebar = function(containerId: string) {
+    const container = document.getElementById(containerId) as HTMLElement;
+    if (container) {
+      toggleContainer(container, containerId === 'schema-container' ? async () => {
+        const selected = getSelectedGraph();
+        if (!selected) return;
+        loadAndShowGraph(selected);
+        setTimeout(resizeGraph, 450);
+      } : undefined);
+    }
+  };
 }
 
 function setupUIComponents() {
