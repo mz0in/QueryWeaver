@@ -5,28 +5,31 @@
 import { DOM, state, MESSAGE_DELIMITER } from './config';
 import { addMessage, removeLoadingMessage, moveLoadingMessageToBottom } from './messages';
 import { getSelectedGraph } from './graph_select';
+import { adjustTextareaHeight } from './input';
 
 export async function sendMessage() {
     const message = (DOM.messageInput?.value || '').trim();
+    
     if (!message) return;
 
-    const selectedValue = getSelectedGraph() || '';
-    if (!selectedValue || selectedValue === "Select Database") {
-        addMessage('Please select a graph from the dropdown before sending a message.', "followup");
-        return;
-    }
+    const selectedValue = getSelectedGraph();
+    
+    if (!selectedValue || selectedValue === "Select Database") return console.debug("No selected graph");
 
     if (state.currentRequestController) {
         state.currentRequestController.abort();
     }
 
-    addMessage(message, "user", (window as any).currentUser || null);
-    if (DOM.messageInput) DOM.messageInput.value = '';
+    addMessage(message, "user", false, (window as any).currentUser || null);
+    if (DOM.messageInput) {
+        DOM.messageInput.value = '';
+        adjustTextareaHeight();
+    }
 
     // Show typing indicator
     DOM.inputContainer?.classList.add('loading');
     if (DOM.submitButton) DOM.submitButton.style.display = 'none';
-    if (DOM.pauseButton) DOM.pauseButton.style.display = 'block';
+    if (DOM.pauseButton) DOM.pauseButton.style.display = 'flex';
     if (DOM.newChatButton) DOM.newChatButton.disabled = true;
     addMessage('', "loading");
 
@@ -192,7 +195,7 @@ function handleQueryResult(step: any) {
 
 function resetUIState() {
     DOM.inputContainer?.classList.remove('loading');
-    if (DOM.submitButton) DOM.submitButton.style.display = 'block';
+    if (DOM.submitButton) DOM.submitButton.style.display = 'flex';
     if (DOM.pauseButton) DOM.pauseButton.style.display = 'none';
     if (DOM.newChatButton) DOM.newChatButton.disabled = false;
     removeLoadingMessage();
