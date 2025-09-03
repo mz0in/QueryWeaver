@@ -13,7 +13,7 @@ from api.extensions import db
 
 
 # Router
-tokens_router = APIRouter()
+tokens_router = APIRouter(tags=["API Tokens"])
 
 class TokenListItem(BaseModel):
     """Response model for token list items"""
@@ -24,7 +24,9 @@ class TokenListResponse(BaseModel):
     """Response model for token list"""
     tokens: List[TokenListItem]
 
-@tokens_router.post("/generate", response_model=TokenListItem)
+@tokens_router.post("/generate", response_model=TokenListItem, responses={
+    401: {"description": "Unauthorized - Please log in or provide a valid API token"}
+})
 @token_required
 async def generate_token(request: Request) -> TokenListItem:
     """Generate a new API token for the authenticated user"""
@@ -67,7 +69,9 @@ async def generate_token(request: Request) -> TokenListItem:
             detail="Internal server error"
         ) from e
 
-@tokens_router.get("/list", response_model=TokenListResponse)
+@tokens_router.get("/list", response_model=TokenListResponse, responses={
+    401: {"description": "Unauthorized - Please log in or provide a valid API token"}
+})
 @token_required
 async def list_tokens(request: Request) -> TokenListResponse:
     """List all tokens for the authenticated user"""
@@ -105,7 +109,9 @@ async def list_tokens(request: Request) -> TokenListResponse:
             detail="Internal server error"
         ) from e
 
-@tokens_router.delete("/{token_id}")
+@tokens_router.delete("/{token_id}", responses={
+    401: {"description": "Unauthorized - Please log in or provide a valid API token"}
+})
 @token_required
 async def delete_token(request: Request, token_id: str) -> JSONResponse:
     """Delete a specific token for the authenticated user"""
