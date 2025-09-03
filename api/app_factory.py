@@ -51,18 +51,23 @@ def create_app():
         title="QueryWeaver",
         description="Text2SQL with Graph-Powered Schema Understanding",
         openapi_tags=[
-            {"name": "Authentication", "description": "User authentication and OAuth operations"},
-            {"name": "Graphs & Databases", "description": "Database schema management and querying"},
-            {"name": "Database Connection", "description": "Connect to external databases"},
-            {"name": "API Tokens", "description": "Manage API tokens for authentication"}
+            {"name": "Authentication",
+             "description": "User authentication and OAuth operations"},
+            {"name": "Graphs & Databases",
+             "description": "Database schema management and querying"},
+            {"name": "Database Connection",
+             "description": "Connect to external databases"},
+            {"name": "API Tokens",
+             "description": "Manage API tokens for authentication"}
         ]
     )
 
-    # Add security schemes to OpenAPI after app creation
+        # Add security schemes to OpenAPI after app creation
     def custom_openapi():
         if app.openapi_schema:
             return app.openapi_schema
-        
+
+        # pylint: disable=import-outside-toplevel
         from fastapi.openapi.utils import get_openapi
         openapi_schema = get_openapi(
             title=app.title,
@@ -70,35 +75,38 @@ def create_app():
             description=app.description,
             routes=app.routes,
         )
-        
+
         # Add security schemes
         openapi_schema["components"]["securitySchemes"] = {
             "ApiTokenAuth": {
                 "type": "apiKey",
                 "in": "cookie",
                 "name": "api_token",
-                "description": "API token for programmatic access. Generate via POST /tokens/generate after OAuth login."
+                "description": "API token for programmatic access. "
+                               "Generate via POST /tokens/generate after OAuth login."
             },
             "SessionAuth": {
                 "type": "apiKey",
                 "in": "cookie", 
                 "name": "session",
-                "description": "Session cookie for web browsers. Login via Google/GitHub at /login/google or /login/github."
+                "description": "Session cookie for web browsers. "
+                               "Login via Google/GitHub at /login/google or /login/github."
             }
         }
-        
+
         # Add security requirements to protected endpoints
-        for path, path_item in openapi_schema["paths"].items():
+        for _, path_item in openapi_schema["paths"].items():
             for method, operation in path_item.items():
                 if method in ["get", "post", "put", "delete", "patch"]:
                     # Check if endpoint has token_required (look for 401 response)
                     if "401" in operation.get("responses", {}):
-                        # Use OR logic - user needs EITHER ApiTokenAuth OR SessionAuth (not both)
+                        # Use OR logic - user needs EITHER ApiTokenAuth OR
+                        # SessionAuth (not both)
                         operation["security"] = [
                             {"ApiTokenAuth": []},  # Option 1: API Token
                             {"SessionAuth": []}    # Option 2: OAuth Session
                         ]
-        
+
         app.openapi_schema = openapi_schema
         return app.openapi_schema
 
