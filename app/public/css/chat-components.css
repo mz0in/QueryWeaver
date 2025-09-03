@@ -89,7 +89,7 @@
 .final-result-message-container::before {
   height: 32px;
   width: 32px;
-  content: 'Bot';
+  content: 'QW';
   color: var(--text-secondary);
   display: flex;
   align-items: center;
@@ -230,6 +230,7 @@
 
 #pause-button {
   display: none;
+  color: var(--text-primary);
 }
 
 #reset-button {

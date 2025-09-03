@@ -17,11 +17,13 @@ import {
   setupToolbar,
   handleWindowResize,
   setupCustomDropdown,
+  setupResizeHandles,
 } from "./modules/ui";
 import { setupAuthenticationModal, setupDatabaseModal } from "./modules/modals";
 import { resizeGraph, showGraph } from "./modules/schema";
 import { setupTokenManagement } from "./modules/tokens";
 import { initLeftToolbar } from "./modules/left_toolbar";
+import { setupTextareaAutoResize } from "./modules/input";
 
 async function loadAndShowGraph(selected: string | undefined) {
   if (!selected) return;
@@ -61,8 +63,23 @@ function initializeApp() {
 function setupEventListeners() {
   DOM.submitButton?.addEventListener("click", sendMessage);
   DOM.pauseButton?.addEventListener("click", pauseRequest);
-  DOM.messageInput?.addEventListener("keypress", (e: KeyboardEvent) => {
-    if ((e as KeyboardEvent).key === "Enter") sendMessage();
+  DOM.messageInput?.addEventListener("keydown", (e: KeyboardEvent) => {
+    if ((e as KeyboardEvent).key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+
+  DOM.messageInput?.addEventListener("input", () => {
+    const submitButton = DOM.submitButton;
+    const messageInput = DOM.messageInput;
+    if (!submitButton || !messageInput) return;
+    const selected = getSelectedGraph();
+    if (messageInput.value && selected && selected !== "Select Database") {
+      submitButton.disabled = false;
+    } else {
+      submitButton.disabled = true;
+    }
   });
 
   DOM.menuButton?.addEventListener("click", () =>
@@ -85,7 +102,7 @@ function setupEventListeners() {
     if (!refreshButton) return;
 
     if (!selected || selected === "Select Database")
-      return alert("Please select a database to refresh");
+      return console.debug("No selected graph");
 
     refreshButton.classList.add("loading");
 
@@ -209,6 +226,8 @@ function setupUIComponents() {
   // initialize left toolbar behavior (burger, responsive default)
   initLeftToolbar();
   setupCustomDropdown();
+  setupTextareaAutoResize();
+  setupResizeHandles();
 }
 
 function loadInitialData() {
