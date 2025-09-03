@@ -225,7 +225,7 @@ function setupUIComponents() {
   // initialize left toolbar behavior (burger, responsive default)
   initLeftToolbar();
   setupCustomDropdown();
-  setupTextareaAutoResize()
+  setupTextareaAutoResize();
 }
 
 function loadInitialData() {
