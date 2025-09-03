@@ -107,8 +107,8 @@ def _graph_name(request: Request, graph_id:str) -> str:
 
     if general_prefix and graph_id.startswith(general_prefix):
         return graph_id
-    else:
-        return f"{request.state.user_id}_{graph_id}"
+    
+    return f"{request.state.user_id}_{graph_id}"
 
 @graphs_router.get("", operation_id="list_databases")
 @token_required
@@ -123,7 +123,7 @@ async def list_graphs(request: Request):
     # Only include graphs that start with user_id + '_', and strip the prefix
     filtered_graphs = [graph[len(f"{user_id}_"):]
                        for graph in user_graphs if graph.startswith(f"{user_id}_")]
-    
+
     if general_prefix:
         demo_graphs = [graph for graph in user_graphs
                        if graph.startswith(f"{general_prefix}")]
@@ -476,12 +476,16 @@ What this will do:
                                 "message": "Step 2: Executing SQL query"}
                         yield json.dumps(step) + MESSAGE_DELIMITER
 
-                        # Check if this query modifies the database schema using the appropriate loader
+                        # Check if this query modifies the database schema
+                        # using the appropriate loader
                         is_schema_modifying, operation_type = (
                             loader_class.is_schema_modifying_query(sql_query)
                         )
 
-                        query_results = loader_class.execute_sql_query(answer_an["sql_query"], db_url)
+                        query_results = loader_class.execute_sql_query(
+                            answer_an["sql_query"],
+                            db_url
+                        )
 
                         yield json.dumps(
                             {
