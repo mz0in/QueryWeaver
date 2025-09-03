@@ -17,6 +17,7 @@ import {
   setupToolbar,
   handleWindowResize,
   setupCustomDropdown,
+  setupResizeHandles,
 } from "./modules/ui";
 import { setupAuthenticationModal, setupDatabaseModal } from "./modules/modals";
 import { resizeGraph, showGraph } from "./modules/schema";
@@ -225,7 +226,8 @@ function setupUIComponents() {
   // initialize left toolbar behavior (burger, responsive default)
   initLeftToolbar();
   setupCustomDropdown();
-  setupTextareaAutoResize()
+  setupTextareaAutoResize();
+  setupResizeHandles();
 }
 
 function loadInitialData() {
