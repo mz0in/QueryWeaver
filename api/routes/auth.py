@@ -282,9 +282,9 @@ async def email_signup(request: Request, signup_data: EmailSignupRequest) -> JSO
 
     except Exception as e:
         logging.error("Signup error: %s", e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Registration failed"
+        return JSONResponse(
+            {"success": False, "error": "Registration failed"},
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
 @auth_router.post("/login/email")
