@@ -99,7 +99,7 @@ class MemoryTool:
                     'name': user_node_name,
                     'group_id': '\\_',
                     'created_at': datetime.now().isoformat(),
-                    'summary': f'User {user_id} is using QueryWeaver',
+                    'summary': f'The User is using QueryWeaver',
                     'name_embedding': user_name_embedding
                 }
                 
@@ -199,8 +199,7 @@ class MemoryTool:
         if conversation.get('answer'):
             conv_text += f"Assistant: {conversation['answer']}\n"
         prompt = f"""
-                You are updating the personal memory of user "{self.user_id}".  
-
+                You are updating the personal memory of user.
                 ### Inputs
                 1. Existing user summary (overall + personal info):
                 {summary}
@@ -218,10 +217,8 @@ class MemoryTool:
                 - Write in **factual third-person style**, suitable for storage as a user node in a graph.
                 - Try to explicitly divide overall summary, usage preferences and personal information.
 
-                ** Do not included the user-id in the content!**
-
                 ### Output
-                An updated user summary for "{self.user_id}".
+                An updated user summary.
                 """
         try:
 
@@ -579,11 +576,11 @@ class MemoryTool:
             memory_context = ""
             
             if user_summary:
-                memory_context += f"{self.user_id} CONTEXT (Personal preferences and information):\n{user_summary}\n\n"
+                memory_context += f"(Personal preferences and information):\n{user_summary}\n\n"
             
             if database_facts:
                 memory_context += f"{self.graph_id} INTERACTION HISTORY (Previous queries and learnings about this database):\n{database_facts}\n\n"
-
+    
             # Add similar queries context
             if similar_queries:
                 memory_context += "SIMILAR QUERIES HISTORY:\n"
