@@ -325,15 +325,8 @@ async def email_login(request: Request, login_data: EmailLoginRequest) -> JSONRe
 
         # Set session data - result is a dict when success is True
         if isinstance(result, dict):
-            user_node = result.get("user")
             identity_node = result.get("identity")
 
-            # Access node properties correctly
-            user_props = (
-                user_node.properties
-                if user_node and hasattr(user_node, "properties")
-                else {}
-            )
             identity_props = (
                 identity_node.properties
                 if identity_node and hasattr(identity_node, "properties")
@@ -342,9 +335,9 @@ async def email_login(request: Request, login_data: EmailLoginRequest) -> JSONRe
             
             user_data = {
                 'id': identity_props.get("provider_user_id", email),
-                'email': user_props.get('email', email),
-                'name': user_props.get('name', ''),
-                'picture': user_props.get('picture', ''),
+                'email': identity_props.get('email', email),
+                'name': identity_props.get('name', ''),
+                'picture': identity_props.get('picture', ''),
             }
 
             # Call the registered Google callback handler if it exists to store user data.
