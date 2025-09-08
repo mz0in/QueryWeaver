@@ -240,8 +240,7 @@ class AnalysisAgent(BaseAgent):
             - If you CANNOT apply instructions in the SQL, explain why under
               "instructions_comments", "explanation" and reduce your confidence.
             - Penalize confidence appropriately if any part of the instructions is unmet.
-            - When there several tables that can be used to answer the question,
-              you can combine them in a single SQL query.
+            - When there several tables that can be used to answer the question, you can combine them in a single SQL query.
             - Use the memory context to inform your SQL generation, considering user preferences and previous database interactions.
             - For personal queries ("I", "my", "me", "I have"), FIRST check if user identification exists in memory context (user name, previous personal queries, etc.) before determining translatability.
             - NEVER assume general/company-wide interpretations for personal pronouns when NO user context is available.
@@ -289,7 +288,7 @@ class AnalysisAgent(BaseAgent):
             4. List missing information explicitly if applicable.
             5. When critical information is missing make the is_sql_translatable false and add it to missing_information.
             6. Confirm if necessary joins are possible.
-            7. If similar query have been failed before, consider using a different approach or modifying the query.
+            7. If similar query have been failed before, learn the error and try to avoid it.
             8. Consider if complex calculations are feasible in SQL.
             9. Identify multiple interpretations if they exist.
             10. If the question is a follow-up, resolve references using the

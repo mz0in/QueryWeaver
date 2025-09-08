@@ -114,7 +114,7 @@ class MemoryTool:
                 """
                 
                 await graph_driver.execute_query(user_cypher, node=user_node_data)
-                print(f"Created user entity node: {user_node_name} with UUID: {self.user_uuid}")
+                print(f"Created user entity node: {user_node_name} with UUID: {user_uuid}")
             else:
                 print(f"User entity node already exists: {user_node_name}")
             
@@ -151,7 +151,7 @@ class MemoryTool:
                 """
                 
                 await graph_driver.execute_query(database_cypher, node=database_node_data)
-                print(f"Created database entity node: {database_node_name} with UUID: {self.database_uuid}")
+                print(f"Created database entity node: {database_node_name} with UUID: {database_uuid}")
             else:
                 print(f"Database entity node already exists: {database_node_name}")
             
@@ -579,7 +579,7 @@ class MemoryTool:
                 memory_context += f"(Personal preferences and information):\n{user_summary}\n\n"
             
             if database_facts:
-                memory_context += f"{self.graph_id} INTERACTION HISTORY (Previous queries and learnings about this database):\n{database_facts}\n\n"
+                memory_context += f"{self.} INTERACTION HISTORY (Previous queries and learnings about this database):\n{database_facts}\n\n"
     
             # Add similar queries context
             if similar_queries:
@@ -600,7 +600,7 @@ class MemoryTool:
                     for i, query_data in enumerate(failed_queries, 1):
                         memory_context += f"{i}. Query: \"{query_data.get('user_query', '')}\"\n"
                         memory_context += f"   Failed SQL: {query_data.get('sql_query', '')}\n"
-                        if query_data.get('error'):
+                        if query_data.gegraph_idt('error'):
                             memory_context += f"   Error: {query_data.get('error')}\n"
                         memory_context += f"   AVOID this approach.\n\n"
                 
