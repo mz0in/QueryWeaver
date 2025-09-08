@@ -461,6 +461,13 @@ class MemoryTool:
         
     async def extract_episode_from_rel(self, rel_result):
         """
+        Extracts the content of episodes associated with a given relationship result.
+
+        Args:
+            rel_result: An object containing an 'episodes' attribute, which is a list of episode UUIDs.
+
+        Returns:
+            List of episode content strings corresponding to the provided episode UUIDs.
         """
         driver = self.graphiti_client.driver
         query = """
