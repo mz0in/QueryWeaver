@@ -493,14 +493,14 @@ What this will do:
                             answer_an["sql_query"],
                             db_url
                         )
-
-                        yield json.dumps(
-                            {
-                                "type": "query_result",
-                                "data": query_results,
-                                "final_response": False
-                            }
-                        ) + MESSAGE_DELIMITER
+                        if len(query_results) != 0:
+                            yield json.dumps(
+                                {
+                                    "type": "query_result",
+                                    "data": query_results,
+                                    "final_response": False
+                                }
+                            ) + MESSAGE_DELIMITER
 
                         # If schema was modified, refresh the graph using the appropriate loader
                         if is_schema_modifying:

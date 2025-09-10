@@ -237,6 +237,7 @@ class AnalysisAgent(BaseAgent):
 
             - Analyze the query's translatability into SQL according to the instructions.
             - Apply the instructions explicitly.
+            - You MUST NEVER use application-level identifiers that are email-based or encoded emails.
             - If you CANNOT apply instructions in the SQL, explain why under
               "instructions_comments", "explanation" and reduce your confidence.
             - Penalize confidence appropriately if any part of the instructions is unmet.
@@ -298,6 +299,5 @@ class AnalysisAgent(BaseAgent):
             13. For personal queries, FIRST check memory context for user identification. If user identity is found in memory context (user name, previous personal queries, etc.), the query IS translatable.
             14. CRITICAL PERSONALIZATION CHECK: If missing user identification/personalization is a significant or primary component of the query (e.g., "show my orders", "my account balance", "my recent purchases", "how many employees I have", "products I own") AND no user identification is available in memory context or schema, set "is_sql_translatable" to false. However, if memory context contains user identification (like user name or previous successful personal queries), then personal queries ARE translatable even if they are the primary component of the query.
 
-            **Do not use the User ID (email based) in the sql_query**
             Again: OUTPUT ONLY VALID JSON. No explanations outside the JSON block. """  # pylint: disable=line-too-long
         return prompt
