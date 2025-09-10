@@ -842,6 +842,10 @@ async def refresh_graph_schema(request: Request, graph_id: str):
     """
     graph_id = _graph_name(request, graph_id)
 
+    # Prevent refresh of demo databases
+    if GENERAL_PREFIX and graph_id.startswith(GENERAL_PREFIX):
+        raise HTTPException(status_code=403, detail="Demo graphs cannot be refreshed")
+
     try:
         # Get database description and URL
         _, db_url = await get_db_description(graph_id)
