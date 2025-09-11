@@ -17,8 +17,6 @@ from api.core.text2sql import (GENERAL_PREFIX,
                                refresh_database_schema
                                 )
 from api.auth.user_management import token_required
-from api.extensions import db
-
 from api.routes.tokens import UNAUTHORIZED_RESPONSE
 
 graphs_router = APIRouter(tags=["Graphs & Databases"])
@@ -39,7 +37,7 @@ async def list_graphs(request: Request):
     """
     This route is used to list all the graphs (databases names) that are available in the database.
     """
-    graphs = await list_databases(request.state.user_id, db, GENERAL_PREFIX)
+    graphs = await list_databases(request.state.user_id, GENERAL_PREFIX)
     return JSONResponse(content=graphs)
 
 @graphs_router.get("/{graph_id}/data", operation_id="database_schema", responses={

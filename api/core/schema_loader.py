@@ -7,6 +7,8 @@ from typing import AsyncGenerator
 
 from pydantic import BaseModel
 
+from api.extensions import db
+
 from api.core.errors import InvalidArgumentError
 from api.loaders.base_loader import BaseLoader
 from api.loaders.postgres_loader import PostgresLoader
@@ -139,7 +141,7 @@ async def load_database(url: str, user_id: str):
     return generate()
 
 
-async def list_databases(user_id: str, general_prefix: str, db) -> list[str]:
+async def list_databases(user_id: str, general_prefix: str) -> list[str]:
     """
     This route is used to list all the graphs (databases names) that are available in the database.
     """
