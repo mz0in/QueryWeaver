@@ -48,6 +48,53 @@ class SecurityMiddleware(BaseHTTPMiddleware):  # pylint: disable=too-few-public-
 
 def create_app():
     """Create and configure the FastAPI application."""
+
+    # Create the FastAPI app instance just to set the o routes
+    # Will be merged with MCP app later if MCP is enabled
+    app = FastAPI(
+        title="QueryWeaver"
+    )
+
+    # Include routers
+    app.include_router(auth_router)
+    app.include_router(graphs_router, prefix="/graphs")
+    app.include_router(database_router)
+    app.include_router(tokens_router, prefix="/tokens")
+
+
+
+    # Control MCP endpoints via environment variable DISABLE_MCP
+    # Default: MCP is enabled unless DISABLE_MCP is set to true
+    disable_mcp = os.getenv("DISABLE_MCP", "false").lower() in ("1", "true", "yes")
+    mcp_app = None
+    if disable_mcp:
+        logging.info("MCP endpoints disabled via DISABLE_MCP environment variable")
+        routes=[       
+            *app.routes,  # Original API routes only
+        ]
+    else:
+        mcp = FastMCP.from_fastapi(
+            app=app,
+            name="queryweaver",
+            route_maps=[
+                RouteMap(tags={"mcp_resource"}, mcp_type=MCPType.RESOURCE),
+                RouteMap(
+                    tags={"mcp_resource_template"},
+                    mcp_type=MCPType.RESOURCE_TEMPLATE,
+                ),
+                RouteMap(tags={"mcp_tool"}, mcp_type=MCPType.TOOL),
+                RouteMap(mcp_type=MCPType.EXCLUDE),
+            ],
+        )
+        mcp_app = mcp.http_app(path="/mcp")
+
+        # Combine routes from both apps
+        routes = [
+            *mcp_app.routes,  # MCP routes
+            *app.routes,  # Original API routes
+        ]
+
+    # Combine the MCP app and original app
     app = FastAPI(
         title="QueryWeaver",
         description="Text2SQL with Graph-Powered Schema Understanding",
@@ -69,49 +116,9 @@ def create_app():
                 "description": "Manage API tokens for authentication",
             },
         ],
+        routes=routes,
+        lifespan=mcp_app.lifespan if mcp_app else None,
     )
-
-    # Include routers
-    app.include_router(auth_router)
-    app.include_router(graphs_router, prefix="/graphs")
-    app.include_router(database_router)
-    app.include_router(tokens_router, prefix="/tokens")
-
-    # Control MCP endpoints via environment variable DISABLE_MCP
-    # Default: MCP is enabled unless DISABLE_MCP is set to true
-    disable_mcp = os.getenv("DISABLE_MCP", "false").lower() in ("1", "true", "yes")
-    if disable_mcp:
-        logging.info("MCP endpoints disabled via DISABLE_MCP environment variable")
-    else:
-        mcp = FastMCP.from_fastapi(
-            app=app,
-            name="queryweaver",
-            route_maps=[
-                RouteMap(
-                    tags={"mcp_resource"},
-                    mcp_type=MCPType.RESOURCE
-                ),
-                RouteMap(
-                    tags={"mcp_resource_template"},
-                    mcp_type=MCPType.RESOURCE_TEMPLATE,
-                ),
-                RouteMap(
-                    tags={"mcp_tool"},
-                    mcp_type=MCPType.TOOL
-                ),
-                RouteMap(mcp_type=MCPType.EXCLUDE),
-            ],
-        )
-        mcp_app = mcp.http_app(path="/mcp")
-        # Combine the MCP app and original app
-        app = FastAPI(
-            title="QueryWeaver",
-            routes=[
-                *mcp_app.routes,  # MCP routes
-                *app.routes,  # Original API routes
-            ],
-            lifespan=mcp_app.lifespan,
-        )
 
     # Add security schemes to OpenAPI after app creation
     def custom_openapi():
